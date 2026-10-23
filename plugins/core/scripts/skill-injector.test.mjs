@@ -94,6 +94,17 @@ test('a skill the prompt already invokes is not reminded of', () => {
   assert.match(context, /^- \/invoicing-rules — x\.$/m)
 })
 
+test('a plugin skill typed by its short name counts as invoked', () => {
+  // Given
+  const project = fixtureProject(configOf(`{}`))
+
+  // When
+  const context = injected(project, '/tdd add a failing test for the Acme refund')
+
+  // Then
+  assert.doesNotMatch(context, /\/core:tdd/)
+})
+
 test('a worktree-scoped project rule says once to invoke the worktree’s scoped copy, however many of its rules matched', () => {
   // Given
   const rules = [
@@ -113,7 +124,7 @@ test('a worktree-scoped project rule says once to invoke the worktree’s scoped
 
 test('an invalid config lets the prompt through and tells the user why no skills were injected', () => {
   // Given
-  const project = fixtureProject(configOf(`{ tracker: { kind: 'jira' } }`))
+  const project = fixtureProject(configOf(`{ stacks: { 'acme-stack': { roots: ['.'] } } }`))
 
   // When
   const { status, stdout } = runHook(project, submit('Fix the Acme tests'))
@@ -122,8 +133,19 @@ test('an invalid config lets the prompt through and tells the user why no skills
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage:
-      'skrymer-ai: the skill injector is off until the project config is fixed:\ntracker.kind: expected "github" or "local", not "jira".',
+      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring.',
   })
+})
+
+test('a bad tracker block leaves the reminders on', () => {
+  // Given
+  const project = fixtureProject(configOf(`{ tracker: { kind: 'jira' }, skills: { prompts: [${invoicingRule}] } }`))
+
+  // When
+  const context = injected(project, 'Round the Acme invoice totals')
+
+  // Then
+  assert.match(context, /^- \/invoicing-rules — /m)
 })
 
 test('a backend test prompt in a kotlin-spring project reaches both the playbook and core:tdd', () => {

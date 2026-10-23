@@ -282,26 +282,29 @@ test('a project’s tracker labels replace only the roles it names', async () =>
   assert.equal(config.tracker.labels['ready-for-agent'], 'ready-for-agent')
 })
 
-test('an unknown tracker kind, an unknown role and a label that is not a string are each an error', async () => {
+test('an unknown tracker kind, an unknown role and a label that is not a string are context errors that leave every rule in force', async () => {
   // Given
   const project = fixtureProject(
-    configOf(`{ tracker: { kind: 'jira', labels: { 'needs-review': 'review', wontfix: 7 } } }`)
+    configOf(`{
+      stacks: { 'kotlin-spring': { roots: ['acme-api'] } },
+      tracker: { kind: 'jira', labels: { 'needs-review': 'review', wontfix: 7 } },
+    }`),
+    ['acme-api']
   )
 
   // When
-  const result = await loadConfig(project, PLUGIN_ROOT)
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
 
   // Then
-  assert.deepEqual(result, {
-    errors: [
-      'tracker.kind: expected "github" or "local", not "jira".',
-      'tracker.labels: there is no role "needs-review". Roles: bug, enhancement, needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix.',
-      'tracker.labels.wontfix: expected a label name.',
-    ],
-  })
+  assert.deepEqual(config.contextErrors, [
+    'tracker.kind: expected "github" or "local", not "jira".',
+    'tracker.labels: there is no role "needs-review". Roles: bug, enhancement, needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix.',
+    'tracker.labels.wontfix: expected a label name.',
+  ])
+  assert.deepEqual(config.tdd.files, ['acme-api/src/**/*.kt'])
 })
 
-test('domain contexts that are not a list, or name a directory the project lacks, are an error', async () => {
+test('domain contexts that are not a list, or name a directory the project lacks, are context errors', async () => {
   // Given
   const notAList = fixtureProject(configOf(`{ domain: { contexts: 'acme-api' } }`))
   const missing = fixtureProject(configOf(`{ domain: { contexts: ['acme-api', 'globex-web'] } }`), ['acme-api'])
@@ -310,8 +313,33 @@ test('domain contexts that are not a list, or name a directory the project lacks
   const results = [await loadConfig(notAList, PLUGIN_ROOT), await loadConfig(missing, PLUGIN_ROOT)]
 
   // Then
-  assert.deepEqual(results, [
-    { errors: ['domain.contexts: expected a list of directories, such as [\'.\'].'] },
-    { errors: ['domain.contexts: "globex-web" does not exist in the project.'] },
-  ])
+  assert.deepEqual(
+    results.map(({ config }) => config.contextErrors),
+    [['domain.contexts: expected a list of directories, such as [\'.\'].'], ['domain.contexts: "globex-web" does not exist in the project.']]
+  )
+})
+
+test('a project prompt rule without a list of skills or a reason is an error naming the rule', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      skills: {
+        prompts: [
+          { id: 'invoicing', pattern: /invoic/i, skill: 'invoicing-rules', why: 'x' },
+          { id: 'tax', pattern: /tax/i, skills: ['tax-rules'] },
+        ],
+      },
+    }`)
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, {
+    errors: [
+      'skills.prompts "invoicing": skills must be a list of skill names.',
+      'skills.prompts "tax": why must say in one line why the skills apply.',
+    ],
+  })
 })

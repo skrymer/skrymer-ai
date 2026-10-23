@@ -34,7 +34,9 @@ function render({ tracker, domain }) {
 
 async function main() {
   JSON.parse(readFileSync(0, 'utf8'))
-  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
+  const result = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
+  const { config } = result
+  const errors = result.errors ?? (config?.contextErrors.length ? config.contextErrors : null)
   if (errors) {
     const message =
       'skrymer-ai: the project config has errors, so skills get no tracker or domain context until it is fixed:\n' +

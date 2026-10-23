@@ -14,7 +14,7 @@ import { escapeRegex, loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** How many reminders one prompt may produce. Rules come most specific first, so the cap drops the most general. */
+/** How many reminders one prompt may produce. Rules come packs first and core last, so the cap drops core's general ones first. */
 const MAX_REMINDERS = 3
 
 /** The skills [prompt] should be reminded of, each with the reasons of every rule naming it. */
@@ -33,9 +33,10 @@ function selectSkills(rules, prompt) {
   return [...bySkill.values()].slice(0, MAX_REMINDERS)
 }
 
-/** Whether [prompt] invokes [skill] itself, so a reminder would only repeat the user. */
+/** Whether [prompt] invokes [skill] itself, by its full name or a plugin skill's short one. */
 function alreadyInvoked(prompt, skill) {
-  return new RegExp(`(^|\\s)/${escapeRegex(skill)}(?![\\w:-])`, 'i').test(prompt)
+  const names = [skill, skill.split(':').pop()].map(escapeRegex).join('|')
+  return new RegExp(`(^|\\s)/(?:${names})(?![\\w:-])`, 'i').test(prompt)
 }
 
 function render(reminders) {

@@ -37,7 +37,9 @@ export function isTddGated(projectDir, file, globs) {
 
 /**
  * `{ config }` with the merged view, `{ config: null }` when the project has no config, or
- * `{ errors }` naming each problem in words a person can act on.
+ * `{ errors }` naming each problem in words a person can act on. A bad `tracker` or `domain`
+ * block only describes the project to the session, so it lands in `config.contextErrors`
+ * instead and leaves every gate and rule in force.
  */
 export async function loadConfig(projectDir, pluginRoot) {
   const file = join(projectDir, CONFIG_PATH)
@@ -90,26 +92,31 @@ export async function loadConfig(projectDir, pluginRoot) {
     if (path) files.push({ ...rule, path })
   }
   for (const rule of project.skills?.prompts ?? []) {
-    const pattern = toRegex(rule.pattern, 'i', `skills.prompts "${rule.id}": pattern`, errors)
-    if (pattern) prompts.push({ ...rule, pattern })
+    const label = `skills.prompts "${rule.id}"`
+    const pattern = toRegex(rule.pattern, 'i', `${label}: pattern`, errors)
+    const skills = Array.isArray(rule.skills) && rule.skills.length && rule.skills.every((skill) => typeof skill === 'string')
+    if (!skills) errors.push(`${label}: skills must be a list of skill names.`)
+    if (typeof rule.why !== 'string' || !rule.why.trim()) errors.push(`${label}: why must say in one line why the skills apply.`)
+    if (pattern && skills) prompts.push({ ...rule, pattern })
   }
   prompts.push(...((await import(pathToFileURL(join(pluginRoot, PACK_FILE)).href)).default.skills?.prompts ?? []))
+  const contextErrors = []
   const tracker = { kind: project.tracker?.kind ?? 'github', labels: { ...DEFAULT_LABELS, ...project.tracker?.labels } }
-  if (!TRACKERS.includes(tracker.kind)) errors.push(`tracker.kind: expected "github" or "local", not "${tracker.kind}".`)
+  if (!TRACKERS.includes(tracker.kind)) contextErrors.push(`tracker.kind: expected "github" or "local", not "${tracker.kind}".`)
   for (const [role, label] of Object.entries(project.tracker?.labels ?? {})) {
-    if (!ROLES.includes(role)) errors.push(`tracker.labels: there is no role "${role}". Roles: ${ROLES.join(', ')}.`)
-    else if (typeof label !== 'string' || !label) errors.push(`tracker.labels.${role}: expected a label name.`)
+    if (!ROLES.includes(role)) contextErrors.push(`tracker.labels: there is no role "${role}". Roles: ${ROLES.join(', ')}.`)
+    else if (typeof label !== 'string' || !label) contextErrors.push(`tracker.labels.${role}: expected a label name.`)
   }
   const domain = { contexts: project.domain?.contexts ?? ['.'] }
   if (!Array.isArray(domain.contexts) || !domain.contexts.length || !domain.contexts.every((c) => typeof c === 'string')) {
-    errors.push("domain.contexts: expected a list of directories, such as ['.'].")
+    contextErrors.push("domain.contexts: expected a list of directories, such as ['.'].")
   } else {
     for (const context of domain.contexts) {
-      if (!isDirectory(join(projectDir, context))) errors.push(`domain.contexts: "${context}" does not exist in the project.`)
+      if (!isDirectory(join(projectDir, context))) contextErrors.push(`domain.contexts: "${context}" does not exist in the project.`)
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, tracker, domain } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, tracker, domain, contextErrors } }
 }
 
 /** [value] as a regex: kept if it is one, compiled with [flags] if it is a string, else an error under [label]. */
