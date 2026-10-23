@@ -1,4 +1,7 @@
 {
   "name": "core",
-  "description": "Stack-agnostic workflow: process skills (tdd, grill, PRD/issues, sign-off) and the config-driven hook engines."
+  "description": "Stack-agnostic workflow: process skills (tdd, grill, PRD/issues, sign-off) and the config-driven hook engines.",
+  "author": {
+    "name": "skrymer"
+  }
 }

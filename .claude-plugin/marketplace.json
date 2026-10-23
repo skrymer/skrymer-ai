@@ -1,6 +1,9 @@
 {
   "name": "skrymer-ai",
-  "owner": { "name": "skrymer" },
+  "owner": {
+    "name": "skrymer"
+  },
+  "description": "skrymer's Claude Code workflow: test-first with an enforced TDD gate, ADRs and a domain glossary, PRD-to-issues planning, and a sign-off gate.",
   "plugins": [
     {
       "name": "core",
