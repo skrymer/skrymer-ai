@@ -6,7 +6,7 @@ A Claude Code plugin marketplace holding one AI-assisted development workflow, s
 
 | Plugin | What it gives a project |
 |---|---|
-| `core` | Process skills (tdd, grill-with-docs, to-prd, to-issues, triage, handoff, diagnose, prototype, check-adrs, feature-sign-off, mutation-test, write-a-skill, setup) and the hook engines (skill injection, skill gate, clone gate, gated-write guard, test-output guard, formatter, Probity TDD gate) |
+| `core` | Process skills (tdd, grill-me, grill-with-docs, to-prd, to-issues, triage, handoff, diagnose, prototype, improve-codebase-architecture, check-adrs, feature-sign-off, mutation-test, write-a-skill, setup) and the hook engines (skill injection, skill gate, clone gate, gated-write guard, test-output guard, formatter, Probity TDD gate) |
 | `kotlin-spring` | Kotlin / Spring Boot backend playbook, pitest, Detekt, Gradle conventions |
 | `react` | React playbook, component testing, Stryker, ESLint/Prettier |
 | `sindri` | Consumer guide for the Sindri component library (sourced from its own repo) |

@@ -1,6 +1,6 @@
 ---
 name: backend-dev
-description: The build-and-test playbook for a Kotlin / Spring Boot backend. Use when building or changing ANY backend functionality (a domain type, service, repository, controller, migration, or its tests). Sets the architecture rules, the five test layers, the Gradle commands, the Detekt refactor moves and the known gotchas, and routes to the tdd, mutation-test and feature-sign-off skills for detail.
+description: The build-and-test playbook for a Kotlin / Spring Boot backend. Use when building or changing ANY backend functionality (a domain type, service, repository, controller, migration, or its tests). Sets the architecture rules, the five test layers, the Gradle commands, the Detekt refactor moves and the known gotchas, and routes to `core:tdd` and the mutation-test and feature-sign-off skills for detail.
 ---
 
 # Backend dev (Kotlin / Spring Boot)
@@ -52,7 +52,7 @@ this one.
 | API, security, wiring    | `@SpringBootTest` + MockMvc                | `api/`, `security/` |
 | The deployable artifact  | Testcontainers against the built image     | `e2e/`           |
 
-- One test at a time, RED first (the `tdd` skill). A **deep module**, meaning an interface
+- One test at a time, RED first (`core:tdd`). A **deep module**, meaning an interface
   worth specifying, gets its own test. **Thin glue is covered by the integrated test**: a
   delegating controller or scheduler wiring gets no standalone test, and mocking internal
   collaborators to give it one is the anti-pattern.
@@ -114,9 +114,9 @@ this one.
 
 The project's `detekt.yml` fails `./gradlew build`. Run the type-resolving `detektMain` /
 `detektTest`, because plain `detekt` misses the type-resolution rules. Each hit is a smell.
-Fix it with the catalog move the `tdd` skill's refactoring guide names, chosen to make the
-code read better. Never fix it by shaving lines, with `@Suppress`, or with a baseline. The
-commit names the move.
+Fix it with the catalog move that `core:tdd`'s refactoring guide names for that smell,
+chosen to make the code read better. Never fix it by shaving lines, with `@Suppress`, or
+with a baseline. The commit names the move. Each smell below is named as in that guide.
 
 | Rule | Smell |
 | --- | --- |
