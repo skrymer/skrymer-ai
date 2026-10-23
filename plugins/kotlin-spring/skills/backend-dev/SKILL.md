@@ -116,7 +116,8 @@ The project's `detekt.yml` fails `./gradlew build`. Run the type-resolving `dete
 `detektTest`, because plain `detekt` misses the type-resolution rules. Each hit is a smell.
 Fix it with the catalog move that `core:tdd`'s refactoring guide names for that smell,
 chosen to make the code read better. Never fix it by shaving lines, with `@Suppress`, or
-with a baseline. The commit names the move. Each smell below is named as in that guide.
+with a baseline. The commit names the move. The Smell column uses that guide's smell
+names; where no smell fits, it names the move itself.
 
 | Rule | Smell |
 | --- | --- |

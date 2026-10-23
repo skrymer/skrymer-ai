@@ -10,7 +10,7 @@ export function findLeaks(files, terms) {
   return leaks
 }
 
-/** A denylist line is `term`, or `term :: path` to allow the term in that one file. */
+/** A denylist line is `term`, or `term :: path` (spaces around the `::`) to allow the term in that one file. */
 export function checkRepo(files, denylistPath) {
   const denylist = files.find((f) => f.path === denylistPath)
   const entries = (denylist?.content ?? '')
@@ -18,7 +18,7 @@ export function checkRepo(files, denylistPath) {
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
     .map((line) => {
-      const [term, allowedIn] = line.split('::').map((part) => part.trim())
+      const [term, allowedIn] = line.split(' :: ')
       return { term, allowedIn }
     })
   const scanned = files.filter((f) => f.path !== denylistPath)

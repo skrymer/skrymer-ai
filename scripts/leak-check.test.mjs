@@ -54,3 +54,18 @@ test('a term written as "term :: path" is flagged everywhere except that one pat
   // Then
   assert.deepEqual(leaks, [{ path: 'plugins/core/skills/tdd/SKILL.md', line: 1, term: 'acme corp' }])
 })
+
+test('a "::" with no spaces around it is part of the term', () => {
+  // Given
+  const denylist = 'acme::billing\n'
+  const files = [
+    { path: 'leak-denylist.txt', content: denylist },
+    { path: 'plugins/core/hooks/x.mjs', content: 'Acme::Billing.charge()\nacme alone' }
+  ]
+
+  // When
+  const leaks = checkRepo(files, 'leak-denylist.txt')
+
+  // Then
+  assert.deepEqual(leaks, [{ path: 'plugins/core/hooks/x.mjs', line: 1, term: 'acme::billing' }])
+})
