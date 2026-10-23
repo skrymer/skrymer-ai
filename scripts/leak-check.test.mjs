@@ -38,3 +38,19 @@ test('reads the denylist one term per line, skipping comments and blanks, and ne
   // Then
   assert.deepEqual(leaks, [{ path: 'plugins/core/hooks/x.mjs', line: 1, term: 'initech' }])
 })
+
+test('a term written as "term :: path" is flagged everywhere except that one path', () => {
+  // Given
+  const denylist = 'acme corp :: NOTICES.md\n'
+  const files = [
+    { path: 'leak-denylist.txt', content: denylist },
+    { path: 'NOTICES.md', content: 'Copyright Acme Corp' },
+    { path: 'plugins/core/skills/tdd/SKILL.md', content: 'Forked from Acme Corp.' }
+  ]
+
+  // When
+  const leaks = checkRepo(files, 'leak-denylist.txt')
+
+  // Then
+  assert.deepEqual(leaks, [{ path: 'plugins/core/skills/tdd/SKILL.md', line: 1, term: 'acme corp' }])
+})
