@@ -9,13 +9,13 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The skills the session has loaded since its last compaction, as the Skill tool named them. */
+/** The skills the session has loaded since its last compaction, through the Skill tool or a typed slash command. */
 function loadedSkills(transcriptText) {
   const loaded = new Set()
   for (const line of transcriptText.split('\n')) {
@@ -27,6 +27,10 @@ function loadedSkills(transcriptText) {
     }
     if (isCompaction(entry)) loaded.clear()
     const content = entry?.message?.content
+    if (typeof content === 'string') {
+      const typed = content.match(/<command-name>\/([^<\s]+)<\/command-name>/)
+      if (typed) loaded.add(typed[1])
+    }
     if (!Array.isArray(content)) continue
     for (const part of content) {
       if (part?.type === 'tool_use' && part.name === 'Skill' && typeof part.input?.skill === 'string') {
@@ -44,11 +48,11 @@ function isCompaction(entry) {
 
 /**
  * A plugin skill (`plugin:name`) counts only under its own namespace; a project skill also
- * counts as a worktree-scoped copy (`<dir>:name`).
+ * counts as a worktree-scoped copy (`<path>:name`), whose scope is a path, unlike a plugin's.
  */
 function isLoaded(skill, loaded) {
   if (skill.includes(':')) return loaded.has(skill)
-  return [...loaded].some((name) => name === skill || name.endsWith(`:${skill}`))
+  return [...loaded].some((name) => name === skill || (name.endsWith(`:${skill}`) && name.includes('/')))
 }
 
 function requiredSkills(rules, filePath) {
@@ -70,9 +74,16 @@ async function main() {
   const payload = JSON.parse(readFileSync(0, 'utf8'))
   const filePath = payload?.tool_input?.file_path
   if (typeof filePath !== 'string') return
-  const { config } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
+  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
+  if (errors) {
+    const message = `skrymer-ai: the skill gate is off until the project config is fixed:\n${errors.join('\n')}`
+    process.stdout.write(JSON.stringify({ systemMessage: message }))
+    return
+  }
   if (!config) return
-  const required = requiredSkills(config.skills.files, filePath)
+  const inProject = relative(process.env.CLAUDE_PROJECT_DIR, filePath)
+  if (inProject.startsWith('..') || isAbsolute(inProject)) return
+  const required = requiredSkills(config.skills.files, inProject)
   if (required.length === 0) return
   const loaded = loadedSkills(readFileSync(transcriptOf(payload), 'utf8'))
   const missing = required.filter((skill) => !isLoaded(skill, loaded))

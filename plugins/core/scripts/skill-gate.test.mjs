@@ -205,21 +205,30 @@ test("a subagent's write is judged by the skills the subagent loaded, not its pa
   assert.match(parentSession, /"permissionDecision":"deny"/)
 })
 
-test('a project with no config, or one that fails validation, is never blocked', () => {
+test('a project with no config is never blocked', () => {
   // Given
   const unadopted = fixtureProject(undefined, ['acme-api'])
+
+  // When
+  const result = runHook(unadopted, 'acme-api/src/test/kotlin/com/acme/InvoiceTest.kt')
+
+  // Then
+  assert.deepEqual(result, { status: 0, stdout: '' })
+})
+
+test('a config that fails validation lets the write through but tells the user why the gate is off', () => {
+  // Given
   const misconfigured = fixtureProject(kotlinConfig('globex-api'), ['acme-api'])
 
   // When
-  const results = [unadopted, misconfigured].map((project) =>
-    runHook(project, 'acme-api/src/test/kotlin/com/acme/InvoiceTest.kt')
-  )
+  const { status, stdout } = runHook(misconfigured, 'acme-api/src/test/kotlin/com/acme/InvoiceTest.kt')
 
   // Then
-  assert.deepEqual(results, [
-    { status: 0, stdout: '' },
-    { status: 0, stdout: '' },
-  ])
+  assert.equal(status, 0)
+  const out = JSON.parse(stdout)
+  assert.equal(out.hookSpecificOutput, undefined)
+  assert.match(out.systemMessage, /skill gate is off/)
+  assert.match(out.systemMessage, /"globex-api" does not exist/)
 })
 
 test('a transcript it cannot read lets the write through', () => {
@@ -240,4 +249,68 @@ test('a transcript it cannot read lets the write through', () => {
   // Then
   assert.equal(result.status, 0)
   assert.equal(result.stdout, '')
+})
+
+test('a skill the user loaded by typing its slash command counts as loaded', () => {
+  // Given
+  const project = fixtureProject(kotlinConfig('acme-api'), ['acme-api'])
+  const typedCommand = JSON.stringify({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: '<command-message>kotlin-spring:backend-dev</command-message>\n<command-name>/kotlin-spring:backend-dev</command-name>',
+    },
+  })
+
+  // When
+  const result = runHook(project, 'acme-api/src/test/kotlin/com/acme/InvoiceTest.kt', transcript(typedCommand))
+
+  // Then
+  assert.deepEqual(result, { status: 0, stdout: '' })
+})
+
+test('a single-module project can name its own directory as the root, with or without a trailing slash', () => {
+  // Given
+  const dotRoot = fixtureProject(kotlinConfig('.'))
+  const slashRoot = fixtureProject(kotlinConfig('acme-api/'), ['acme-api'])
+
+  // When
+  const results = [
+    runHook(dotRoot, 'src/test/kotlin/com/acme/InvoiceTest.kt'),
+    runHook(slashRoot, 'acme-api/src/test/kotlin/com/acme/InvoiceTest.kt'),
+  ]
+
+  // Then
+  for (const { stdout } of results) assert.equal(JSON.parse(stdout).hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('a file outside the project is not gated, even under a directory named like a root', () => {
+  // Given
+  const project = fixtureProject(kotlinConfig('acme-api'), ['acme-api'])
+  const elsewhere = mkdtempSync(join(tmpdir(), 'globex-'))
+
+  // When
+  const result = runHook(project, `../${elsewhere.split('/').pop()}/acme-api/src/test/kotlin/Other.kt`)
+
+  // Then
+  assert.deepEqual(result, { status: 0, stdout: '' })
+})
+
+test("another plugin's skill of the same name does not satisfy a project skill", () => {
+  // Given
+  const project = fixtureProject(
+    `
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  skills: { files: [{ id: 'billing', path: /billing\\//, skills: ['billing-rules'], why: 'x' }] },
+})
+`
+  )
+
+  // When
+  const { stdout } = runHook(project, 'billing/Invoice.kt', transcript(skillCall('initech:billing-rules')))
+
+  // Then
+  assert.match(JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason, /\/billing-rules/)
 })
