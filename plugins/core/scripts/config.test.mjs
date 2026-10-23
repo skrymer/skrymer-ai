@@ -116,3 +116,60 @@ test('a config with no default export is an error saying what it must export', a
   // Then
   assert.deepEqual(result, { errors: ['.claude/skrymer-ai.config.mjs: expected `export default defineConfig({ … })`.'] })
 })
+
+test('the TDD-gated trees are each pack’s source globs under every one of its roots', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api', './'] } } }`), ['acme-api'])
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(config.tdd.files, ['acme-api/src/**/*.kt', 'src/**/*.kt'])
+})
+
+test('a project’s own TDD globs are gated after the packs’', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      stacks: { 'kotlin-spring': { roots: ['acme-api'] } },
+      tdd: { files: ['acme-scripts/**/*.kts'] },
+    }`),
+    ['acme-api']
+  )
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(config.tdd.files, ['acme-api/src/**/*.kt', 'acme-scripts/**/*.kts'])
+})
+
+test('TDD files that are not a list of globs are an error, not a gate that covers nothing', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] } }, tdd: { files: 'acme-scripts/**/*.kts' } }`),
+    ['acme-api']
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, { errors: ['tdd.files: expected a list of globs.'] })
+})
+
+test('the test commands are each enabled pack’s, once however many roots it has', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api', 'globex-api'] } } }`), [
+    'acme-api',
+    'globex-api',
+  ])
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.equal(config.tdd.testCommands.length, 1)
+  assert.match('./gradlew :acme:test', config.tdd.testCommands[0])
+})

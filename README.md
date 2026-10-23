@@ -22,7 +22,7 @@ Once per machine:
 /plugin install core@skrymer-ai
 ```
 
-Then in a project, run `/core:setup`. It detects the stacks, proposes the packs, and writes `.claude/settings.json`, `.claude/skrymer-ai.config.mjs` (the only project-specific config), the Probity config, git hooks, a CI template, and empty `CONTEXT.md` / `docs/adr/`. It is idempotent: re-running it adopts an existing repo, and `/core:setup --check` reports drift.
+Then in a project, run `/core:setup`. It detects the stacks, proposes the packs, and writes `.claude/settings.json`, `.claude/skrymer-ai.config.mjs` (the only project-specific config), git hooks, a CI template, and empty `CONTEXT.md` / `docs/adr/`. It is idempotent: re-running it adopts an existing repo, and `/core:setup --check` reports drift.
 
 ## Project config
 
