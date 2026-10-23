@@ -1,0 +1,3 @@
+# Projects adopt the workflow through an idempotent `/core:setup`
+
+`core` is installed once per machine at user scope; in any repo `/core:setup` detects the stacks, proposes the packs and roots, shows a diff, and writes the settings, the project config, the Probity config and dev dependency, git hooks, a CI template, and empty `CONTEXT.md` / `docs/adr/`. It merges rather than overwrites, so re-running it is also how an existing project migrates; `--check` reports drift. A `SessionStart` hook nudges when the plugin is enabled but no project config exists.

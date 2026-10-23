@@ -1,0 +1,16 @@
+# Terms that must never appear in skrymer-ai: project and product names, and the
+# domains of the projects that consume it. A hit means project-specific content was
+# copied in instead of generalised — move it into the project's own config or skills.
+# One case-insensitive substring per line.
+tucker
+eirheim
+udgaard
+midgaard
+asgaard
+skrymerbt
+diet
+calorie
+protein
+health data
+backtest
+trading
