@@ -1,0 +1,8 @@
+{
+  "name": "kotlin-spring",
+  "description": "Kotlin / Spring Boot backend pack: the backend playbook and the stack's default rule fragments.",
+  "author": {
+    "name": "skrymer"
+  },
+  "dependencies": ["core"]
+}

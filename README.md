@@ -24,6 +24,22 @@ Once per machine:
 
 Then in a project, run `/core:setup`. It detects the stacks, proposes the packs, and writes `.claude/settings.json`, `.claude/skrymer-ai.config.mjs` (the only project-specific config), the Probity config, git hooks, a CI template, and empty `CONTEXT.md` / `docs/adr/`. It is idempotent: re-running it adopts an existing repo, and `/core:setup --check` reports drift.
 
+## Project config
+
+```js
+// .claude/skrymer-ai.config.mjs
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  stacks: { 'kotlin-spring': { roots: ['api'] } },
+  skills: {
+    files: [{ id: 'billing', path: /api\/src\/.*\/billing\//, skills: ['billing-rules'], why: 'Money rounds one way.' }],
+  },
+})
+```
+
+`'skrymer-ai'` resolves to the plugin when a hook loads the file, so the project installs nothing. Each pack adds its stack's rules under every root it is given. A file needs every skill whose rule its path matches.
+
 ## Developing
 
 `npm run check` runs the leak check and every hook test (`node --test`, no dependencies). The leak check fails the build when a term from `leak-denylist.txt` — a consuming project's name or domain — appears anywhere: everything here must be generic, and project specifics belong in the project's config.
