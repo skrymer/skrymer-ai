@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Human-in-the-loop reproduction loop.
-# Copy this file, edit the steps below, and run it.
-# The agent runs the script; the user follows prompts in their terminal.
+# The agent copies this file and edits the steps below. The user runs the copy in
+# their own terminal, because the prompts need one, and pastes the Captured block back.
 #
 # Usage:
-#   bash hitl-loop.template.sh
+#   bash hitl-loop.sh
 #
 # Two helpers:
 #   step "<instruction>"          → show instruction, wait for Enter
