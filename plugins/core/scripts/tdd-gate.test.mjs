@@ -118,3 +118,14 @@ test('an invalid config lets the write through and says the TDD gate is off', ()
   assert.equal(out.hookSpecificOutput, undefined)
   assert.match(out.systemMessage, /TDD gate is off[\s\S]*tdd\.files/)
 })
+
+test('a Probity command set with stray whitespace still runs', () => {
+  // Given
+  const project = acmeProject()
+
+  // When
+  const { stdout } = runHook(project, 'acme-api/src/main/kotlin/Invoice.kt', `  ${fakeProbity()} `)
+
+  // Then
+  assert.match(JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason, /^Probity: --agent claude-code/)
+})

@@ -75,6 +75,8 @@ for (const command of [
   'cat > acme-api/src/main/kotlin/Invoice.kt <<EOF\nclass Invoice\nEOF',
   'echo y >> acme-api/src/main/kotlin/Invoice.kt',
   'printf x | tee acme-web/app/components/InvoiceRow.vue',
+  'echo y >| acme-api/src/main/kotlin/Invoice.kt',
+  'printf x | tee --append acme-api/src/main/kotlin/Invoice.kt',
 ]) {
   test(`a redirect or tee onto a gated file is denied: \`${command.split('\n')[0]}\``, () => {
     // Given
@@ -237,3 +239,82 @@ test('input that is not JSON is let through', () => {
   assert.equal(result.status, 0)
   assert.equal(result.stdout, '')
 })
+
+for (const command of [
+  "sed -Ei 's/a/b/' acme-api/src/main/kotlin/Invoice.kt",
+  "sed -i.bak 's/a/b/' acme-api/src/main/kotlin/Invoice.kt",
+  "sed --in-place 's/a/b/' acme-api/src/main/kotlin/Invoice.kt",
+  "perl -pi -e 's/a/b/' acme-api/src/main/kotlin/Invoice.kt",
+]) {
+  test(`an in-place edit with any spelling of the flag is denied: \`${command}\``, () => {
+    // Given
+    const project = acmeProject()
+
+    // When
+    const result = denied(project, command)
+
+    // Then
+    assert.equal(result, true)
+  })
+}
+
+test('a redirect to a backup beside a gated file is allowed', () => {
+  // Given
+  const project = acmeProject()
+
+  // When
+  const result = denied(project, 'cat acme-api/src/main/kotlin/Invoice.kt > acme-api/src/main/kotlin/Invoice.kt.bak')
+
+  // Then
+  assert.equal(result, false)
+})
+
+for (const command of [
+  'cp /tmp/Invoice.kt acme-api/src/main/kotlin/Invoice.kt 2>/dev/null',
+  'cp /tmp/Invoice.kt acme-api/src/main/kotlin/',
+  'mv /tmp/acme/Invoice.kt acme-api/src/main/kotlin',
+  'cp -t acme-api/src/main/kotlin /tmp/Invoice.kt',
+]) {
+  test(`a copy that lands on a gated file is denied: \`${command}\``, () => {
+    // Given
+    const project = acmeProject()
+
+    // When
+    const result = denied(project, command)
+
+    // Then
+    assert.equal(result, true)
+  })
+}
+
+test('a copy of a gated file into an ungated directory is allowed', () => {
+  // Given
+  const project = acmeProject()
+
+  // When
+  const result = denied(project, 'cp acme-api/src/main/kotlin/Invoice.kt /tmp/acme/ 2>&1')
+
+  // Then
+  assert.equal(result, false)
+})
+
+for (const command of [
+  `python3 -c "open('acme-api/src/main/kotlin/Invoice.kt','wb').write(b'x')"`,
+  `python3 -c "open('acme-api/src/main/kotlin/Invoice.kt', 'r+').write('x')"`,
+  `python3 -c "import pathlib; pathlib.Path('acme-api/src/main/kotlin/Invoice.kt').write_bytes(b'x')"`,
+  `python3 -c "import shutil; shutil.copy('/tmp/Invoice.kt', 'acme-api/src/main/kotlin/Invoice.kt')"`,
+  `node -e "require('fs').appendFileSync('acme-api/src/main/kotlin/Invoice.kt', 'x')"`,
+  `node -e "require('fs').createWriteStream('acme-api/src/main/kotlin/Invoice.kt').end('x')"`,
+  `node -e "require('fs').renameSync('/tmp/Invoice.kt', 'acme-api/src/main/kotlin/Invoice.kt')"`,
+]) {
+  test(`an inline script write in another mode or call is denied: \`${command}\``, () => {
+    // Given
+    const project = acmeProject()
+
+    // When
+    const result = denied(project, command)
+
+    // Then
+    assert.equal(result, true)
+  })
+}

@@ -5,7 +5,7 @@
 
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { registerHooks } from 'node:module'
-import { basename, join } from 'node:path'
+import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
@@ -21,6 +21,13 @@ registerHooks({
 
 export function defineConfig(config) {
   return config
+}
+
+/** Whether [file], an absolute path, is inside [projectDir] and matches one of the TDD [globs]. */
+export function isTddGated(projectDir, file, globs) {
+  const inProject = relative(projectDir, file)
+  if (inProject.startsWith('..') || isAbsolute(inProject)) return false
+  return globs.some((glob) => matchesGlob(inProject, glob))
 }
 
 /**
@@ -68,8 +75,9 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   const projectTdd = project.tdd?.files ?? []
-  if (Array.isArray(projectTdd) && projectTdd.every((glob) => typeof glob === 'string')) tdd.push(...projectTdd)
-  else errors.push('tdd.files: expected a list of globs.')
+  if (Array.isArray(projectTdd) && projectTdd.every((glob) => typeof glob === 'string')) {
+    tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
+  } else errors.push('tdd.files: expected a list of globs.')
   for (const rule of project.skills?.files ?? []) {
     if (rule.path instanceof RegExp) {
       files.push(rule)
@@ -133,4 +141,4 @@ const rootPrefix = (root) => (trimRoot(root) ? `${escapeRegex(trimRoot(root))}/`
 /** A root as the start of a project-relative glob. */
 const globPrefix = (root) => (trimRoot(root) ? `${trimRoot(root)}/` : '')
 
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

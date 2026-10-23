@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * PreToolUse hook (Bash): refuses a test run whose output is piped through `grep`, `head` or
- * `tail`. Probity judges RED and GREEN from the output the session shows, and a clean red
- * (an assertion failed) differs from a compile error only in detail that a filter drops.
+ * PreToolUse hook (Bash): refuses a test run whose output is piped through a filter such as
+ * `grep`, `head` or `tail`. Probity judges RED and GREEN from the output the session shows,
+ * and a clean red (an assertion failed) differs from a compile error only in detail that a
+ * filter drops.
  * Which commands are test runs comes from the enabled packs.
  *
  * Fails open on any error: a gate that cannot read its input never blocks.
@@ -15,7 +16,8 @@ import { loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-const FILTER = /\|\s*(?:grep|head|tail)\b/
+/** A pipe into anything but `tee` or `cat`, which pass the whole output on. */
+const FILTER = /\|&?\s*(?!(?:tee|cat)\b)\S/
 
 /** Whether one command list (no `;`, `&&`, `||` or newline) pipes a test run into a filter. */
 function filtersARun(segment, testCommands) {
@@ -41,9 +43,9 @@ async function main() {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          'Project convention: never filter a test run through grep, head or tail. Probity reads the ' +
-          'full output to tell a failing assertion from a compile error. Run it unfiltered, or ' +
-          'redirect it to a file and Read that, then retry.',
+          'Project convention: never pipe a test run through grep, head, tail or another filter. ' +
+          'Probity reads the full output to tell a failing assertion from a compile error. Run it ' +
+          'unfiltered, `| tee` it, or redirect it to a file and Read that, then retry.',
       },
     })
   )
