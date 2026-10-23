@@ -14,9 +14,9 @@
 
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadConfig } from './config.mjs'
+import { isTddGated, loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PROBITY_CONFIG = join(PLUGIN_ROOT, 'scripts', 'probity.config.mjs')
@@ -35,10 +35,8 @@ async function main() {
     return
   }
   if (!config) return
-  const inProject = relative(process.env.CLAUDE_PROJECT_DIR, filePath)
-  if (inProject.startsWith('..') || isAbsolute(inProject)) return
-  if (!config.tdd.files.some((glob) => matchesGlob(inProject, glob))) return
-  const [command, ...args] = (process.env.SKRYMER_AI_PROBITY || PROBITY).split(/\s+/)
+  if (!isTddGated(process.env.CLAUDE_PROJECT_DIR, filePath, config.tdd.files)) return
+  const [command, ...args] = (process.env.SKRYMER_AI_PROBITY?.trim() || PROBITY).split(/\s+/)
   const probity = spawnSync(command, [...args, '--agent', 'claude-code', '--config', PROBITY_CONFIG], {
     input,
     encoding: 'utf8',

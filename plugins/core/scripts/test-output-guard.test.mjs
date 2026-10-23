@@ -48,6 +48,7 @@ test('a Gradle test run piped through tail is denied', () => {
 
 for (const command of [
   './gradlew test',
+  './gradlew test 2>&1 | tee acme-test.log',
   './gradlew test > acme-test.log; grep -n FAILED acme-test.log',
   'git log --oneline | grep test',
 ]) {
@@ -92,7 +93,15 @@ test('an invalid config lets the run through and says the guard is off', () => {
   assert.match(out.systemMessage, /test-output guard is off[\s\S]*initech-stack/)
 })
 
-for (const command of ['./gradlew check 2>&1 | tail -20', './gradlew build | head -50', './gradlew :acme:test | grep -A5 FAILED']) {
+for (const command of [
+  './gradlew check 2>&1 | tail -20',
+  './gradlew build | head -50',
+  './gradlew :acme:test | grep -A5 FAILED',
+  './gradlew test |& tail',
+  './gradlew test | rg FAIL',
+  "./gradlew test | awk '/FAILED/'",
+  './gradlew test 2>&1 | tee acme-test.log | tail -5',
+]) {
   test(`\`${command}\` is denied`, () => {
     // Given
     const project = kotlinProject()

@@ -173,3 +173,14 @@ test('the test commands are each enabled pack’s, once however many roots it ha
   assert.equal(config.tdd.testCommands.length, 1)
   assert.match('./gradlew :acme:test', config.tdd.testCommands[0])
 })
+
+test('a project TDD glob written from ./ is gated as if written from the project root', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ tdd: { files: ['./acme-scripts/**/*.kts'] } }`))
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(config.tdd.files, ['acme-scripts/**/*.kts'])
+})
