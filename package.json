@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test 'plugins/**/*.test.mjs' 'scripts/**/*.test.mjs'",
     "leak-check": "node scripts/leak-check.mjs",
-    "check": "npm run leak-check && npm test"
+    "check": "npm run leak-check && npm test",
+    "evals": "claude plugin eval plugins/core --ablation none --no-publish --trust-plugin --scaffold --allow-tools Write Edit Bash --model claude-sonnet-5-5 --judge-model claude-opus-5-5 --threshold 0.8 --max-cost-usd 15"
   }
 }
