@@ -14,3 +14,5 @@ protein
 health data
 backtest
 trading
+# The upstream the core skills were forked from: named only in the attribution notice.
+pocock :: plugins/core/THIRD-PARTY-NOTICES.md
