@@ -9,6 +9,29 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/skill-gate.mjs\"",
             "timeout": 5,
             "statusMessage": "Checking the skills this file needs"
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/tdd-gate.mjs\"",
+            "timeout": 120,
+            "statusMessage": "Probity: checking TDD"
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/test-output-guard.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking the test output stays whole"
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/gated-write-guard.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking the command writes no TDD-gated file"
           }
         ]
       }
