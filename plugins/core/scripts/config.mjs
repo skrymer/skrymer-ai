@@ -41,6 +41,8 @@ export async function loadConfig(projectDir, pluginRoot) {
   }
   const errors = []
   const files = []
+  const tdd = []
+  const testCommands = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -53,6 +55,7 @@ export async function loadConfig(projectDir, pluginRoot) {
       continue
     }
     const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
+    testCommands.push(...(fragment.tdd?.testCommands ?? []))
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
         errors.push(`stacks.${pack}.roots: "${root}" does not exist in the project.`)
@@ -61,8 +64,12 @@ export async function loadConfig(projectDir, pluginRoot) {
       for (const rule of fragment.skills?.files ?? []) {
         files.push({ ...rule, path: new RegExp(`(^|/)${rootPrefix(root)}(?:${rule.path.source})`) })
       }
+      for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
     }
   }
+  const projectTdd = project.tdd?.files ?? []
+  if (Array.isArray(projectTdd) && projectTdd.every((glob) => typeof glob === 'string')) tdd.push(...projectTdd)
+  else errors.push('tdd.files: expected a list of globs.')
   for (const rule of project.skills?.files ?? []) {
     if (rule.path instanceof RegExp) {
       files.push(rule)
@@ -80,7 +87,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files } } }
+  return { config: { skills: { files }, tdd: { files: tdd, testCommands } } }
 }
 
 /**
@@ -117,10 +124,13 @@ const inPlace = (pluginRoot) => basename(pluginRoot) === 'core'
 const isDirectory = (path) => existsSync(path) && statSync(path).isDirectory()
 const isPack = (dir) => existsSync(join(dir, PACK_FILE))
 
-/** A root as the start of a project-relative path: `api/` for `./api/`, nothing for `.`. */
-function rootPrefix(root) {
-  const trimmed = root.replace(/^\.\/+/, '').replace(/\/+$/, '')
-  return trimmed === '.' || trimmed === '' ? '' : `${escapeRegex(trimmed)}/`
-}
+/** A root as a project-relative directory: `api` for `./api/`, nothing for `.`. */
+const trimRoot = (root) => root.replace(/^\.\/+/, '').replace(/\/+$/, '').replace(/^\.$/, '')
+
+/** A root as the start of a project-relative path regex. */
+const rootPrefix = (root) => (trimRoot(root) ? `${escapeRegex(trimRoot(root))}/` : '')
+
+/** A root as the start of a project-relative glob. */
+const globPrefix = (root) => (trimRoot(root) ? `${trimRoot(root)}/` : '')
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

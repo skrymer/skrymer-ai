@@ -1,8 +1,13 @@
 /**
- * The kotlin-spring pack's default rule fragment. Each `path` is relative to a stack root
- * the project config names, so a project states only its roots.
+ * The kotlin-spring pack's default rule fragment. Each `path` and TDD glob is relative to a
+ * stack root the project config names, so a project states only its roots. A test command
+ * matches within one shell command.
  */
 export default {
+  tdd: {
+    files: ['src/**/*.kt'],
+    testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],
+  },
   skills: {
     files: [
       {
