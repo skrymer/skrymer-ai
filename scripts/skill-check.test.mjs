@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { findSkillProblems } from './skill-check.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -103,5 +103,30 @@ test('every skill shipped in this repo is named for its directory and links only
   const problems = findSkillProblems(files)
 
   // Then
+  assert.deepEqual(problems, [])
+})
+
+test('every skill a core or pack rule names has a SKILL.md in its own plugin, and only project rules are worktree-scoped', async () => {
+  // Given
+  const plugins = readdirSync(join(REPO, 'plugins')).filter((plugin) => existsSync(join(REPO, 'plugins', plugin, 'skrymer-ai.pack.mjs')))
+  const rules = []
+  for (const plugin of plugins) {
+    const fragment = (await import(pathToFileURL(join(REPO, 'plugins', plugin, 'skrymer-ai.pack.mjs')).href)).default
+    for (const rule of [...(fragment.skills?.files ?? []), ...(fragment.skills?.prompts ?? [])]) rules.push({ plugin, rule })
+  }
+
+  // When
+  const problems = rules.flatMap(({ plugin, rule }) => [
+    ...rule.skills
+      .filter((skill) => {
+        const [owner, name] = skill.split(':')
+        return !name || !existsSync(join(REPO, 'plugins', owner, 'skills', name, 'SKILL.md'))
+      })
+      .map((skill) => `${plugin} rule "${rule.id}" names ${skill}, which has no SKILL.md`),
+    ...(rule.worktreeScoped ? [`${plugin} rule "${rule.id}" is worktree-scoped`] : []),
+  ])
+
+  // Then
+  assert.ok(plugins.includes('core') && rules.length > 0)
   assert.deepEqual(problems, [])
 })

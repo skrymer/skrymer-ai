@@ -1,5 +1,29 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-context.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Loading the project’s tracker and domain context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/skill-injector.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Finding the skills this prompt needs"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "^(Write|Edit)$",
