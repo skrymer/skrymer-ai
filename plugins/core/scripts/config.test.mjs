@@ -83,3 +83,36 @@ test('a config that does not load, such as one with a bad regex literal, is an e
   assert.equal(result.errors.length, 1)
   assert.match(result.errors[0], /^\.claude\/skrymer-ai\.config\.mjs does not load: .*Invalid regular expression/)
 })
+
+test('a stack without a list of roots is an error, not a crash', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { root: 'acme-api' } } }`), ['acme-api'])
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, { errors: ['stacks.kotlin-spring.roots: expected a list of directories.'] })
+})
+
+test('a project rule without a path is an error, rather than a rule matching every file', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ skills: { files: [{ id: 'billing', paths: /billing\\//, skills: ['billing-rules'], why: 'x' }] } }`))
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, { errors: ['skills.files "billing": path must be a regex or a string.'] })
+})
+
+test('a config with no default export is an error saying what it must export', async () => {
+  // Given
+  const project = fixtureProject(`export const config = { stacks: {} }\n`)
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, { errors: ['.claude/skrymer-ai.config.mjs: expected `export default defineConfig({ … })`.'] })
+})

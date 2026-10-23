@@ -36,9 +36,17 @@ export async function loadConfig(projectDir, pluginRoot) {
   } catch (error) {
     return { errors: [`${CONFIG_PATH} does not load: ${error.message}`] }
   }
+  if (typeof project !== 'object' || project === null) {
+    return { errors: [`${CONFIG_PATH}: expected \`export default defineConfig({ … })\`.`] }
+  }
   const errors = []
   const files = []
-  for (const [pack, { roots }] of Object.entries(project.stacks ?? {})) {
+  for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
+    const roots = stack?.roots
+    if (!Array.isArray(roots)) {
+      errors.push(`stacks.${pack}.roots: expected a list of directories.`)
+      continue
+    }
     const dir = packDir(pluginRoot, pack)
     if (!dir) {
       errors.push(`stacks: there is no pack "${pack}". Packs available: ${availablePacks(pluginRoot).join(', ')}.`)
@@ -51,13 +59,17 @@ export async function loadConfig(projectDir, pluginRoot) {
         continue
       }
       for (const rule of fragment.skills?.files ?? []) {
-        files.push({ ...rule, path: new RegExp(`(^|/)${escapeRegex(root)}/(?:${rule.path.source})`) })
+        files.push({ ...rule, path: new RegExp(`(^|/)${rootPrefix(root)}(?:${rule.path.source})`) })
       }
     }
   }
   for (const rule of project.skills?.files ?? []) {
     if (rule.path instanceof RegExp) {
       files.push(rule)
+      continue
+    }
+    if (typeof rule.path !== 'string') {
+      errors.push(`skills.files "${rule.id}": path must be a regex or a string.`)
       continue
     }
     try {
@@ -75,7 +87,7 @@ export async function loadConfig(projectDir, pluginRoot) {
  * Where [pack] is installed beside `core`, or null. Loaded in place (the source tree, or a
  * marketplace added from a local directory) the plugins are siblings. Copied into Claude
  * Code's plugin cache, each sits under `<marketplace>/<plugin>/<version>/`, and the pack is
- * preferred at core's own version, else its newest.
+ * preferred at core's own version, else the most recently installed.
  */
 function packDir(pluginRoot, pack) {
   if (inPlace(pluginRoot)) {
@@ -104,4 +116,11 @@ function availablePacks(pluginRoot) {
 const inPlace = (pluginRoot) => basename(pluginRoot) === 'core'
 const isDirectory = (path) => existsSync(path) && statSync(path).isDirectory()
 const isPack = (dir) => existsSync(join(dir, PACK_FILE))
+
+/** A root as the start of a project-relative path: `api/` for `./api/`, nothing for `.`. */
+function rootPrefix(root) {
+  const trimmed = root.replace(/^\.\/+/, '').replace(/\/+$/, '')
+  return trimmed === '.' || trimmed === '' ? '' : `${escapeRegex(trimmed)}/`
+}
+
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
