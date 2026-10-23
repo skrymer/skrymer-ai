@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    name: Leak check and hook tests
+    name: Leak check, hook tests and plugin validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,3 +15,5 @@ jobs:
         with:
           node-version: 24
       - run: npm run check
+      - run: npm install -g @anthropic-ai/claude-code@2.1.280
+      - run: claude plugin validate .
