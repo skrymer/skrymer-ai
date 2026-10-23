@@ -66,7 +66,7 @@ test('a write to a gated file is judged by Probity with core’s config, and its
   assert.match(out.permissionDecisionReason, /acme-api\/src\/main\/kotlin\/Invoice\.kt$/)
 })
 
-test('when Probity cannot run, the write goes through and the user is told the gate is off', () => {
+test('when Probity cannot run, the gated write is denied with the reason', () => {
   // Given
   const project = acmeProject()
 
@@ -75,9 +75,10 @@ test('when Probity cannot run, the write goes through and the user is told the g
 
   // Then
   assert.equal(status, 0)
-  const out = JSON.parse(stdout)
-  assert.equal(out.hookSpecificOutput, undefined)
-  assert.match(out.systemMessage, /TDD gate is off for this write: Probity did not run/)
+  const out = JSON.parse(stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /Probity did not run \(.*initech-no-such-probity.*\)/)
+  assert.match(out.permissionDecisionReason, /Edit\/Write/)
 })
 
 for (const file of ['acme-api/build/generated/InvoiceRecord.kt', 'docs/acme-notes.md']) {
