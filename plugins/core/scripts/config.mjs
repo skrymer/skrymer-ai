@@ -11,6 +11,11 @@ import { pathToFileURL } from 'node:url'
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
 const PACK_FILE = 'skrymer-ai.pack.mjs'
 
+/** The roles the process skills speak of, each mapped by default to a label of the same name. */
+const ROLES = ['bug', 'enhancement', 'needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
+const TRACKERS = ['github', 'local']
+const DEFAULT_LABELS = Object.fromEntries(ROLES.map((role) => [role, role]))
+
 /** Lets a project config `import { defineConfig } from 'skrymer-ai'` without installing anything. */
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -48,6 +53,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   }
   const errors = []
   const files = []
+  const prompts = []
   const tdd = []
   const testCommands = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
@@ -63,6 +69,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
     const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
+    prompts.push(...(fragment.skills?.prompts ?? []))
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
         errors.push(`stacks.${pack}.roots: "${root}" does not exist in the project.`)
@@ -79,32 +86,55 @@ export async function loadConfig(projectDir, pluginRoot) {
     tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
   } else errors.push('tdd.files: expected a list of globs.')
   for (const rule of project.skills?.files ?? []) {
-    if (rule.path instanceof RegExp) {
-      files.push(rule)
-      continue
-    }
-    if (typeof rule.path !== 'string') {
-      errors.push(`skills.files "${rule.id}": path must be a regex or a string.`)
-      continue
-    }
-    try {
-      files.push({ ...rule, path: new RegExp(rule.path) })
-    } catch (error) {
-      const reason = error.message.split(': ').pop()
-      errors.push(`skills.files "${rule.id}": path "${rule.path}" is not a valid regex (${reason}).`)
+    const path = toRegex(rule.path, '', `skills.files "${rule.id}": path`, errors)
+    if (path) files.push({ ...rule, path })
+  }
+  for (const rule of project.skills?.prompts ?? []) {
+    const pattern = toRegex(rule.pattern, 'i', `skills.prompts "${rule.id}": pattern`, errors)
+    if (pattern) prompts.push({ ...rule, pattern })
+  }
+  prompts.push(...((await import(pathToFileURL(join(pluginRoot, PACK_FILE)).href)).default.skills?.prompts ?? []))
+  const tracker = { kind: project.tracker?.kind ?? 'github', labels: { ...DEFAULT_LABELS, ...project.tracker?.labels } }
+  if (!TRACKERS.includes(tracker.kind)) errors.push(`tracker.kind: expected "github" or "local", not "${tracker.kind}".`)
+  for (const [role, label] of Object.entries(project.tracker?.labels ?? {})) {
+    if (!ROLES.includes(role)) errors.push(`tracker.labels: there is no role "${role}". Roles: ${ROLES.join(', ')}.`)
+    else if (typeof label !== 'string' || !label) errors.push(`tracker.labels.${role}: expected a label name.`)
+  }
+  const domain = { contexts: project.domain?.contexts ?? ['.'] }
+  if (!Array.isArray(domain.contexts) || !domain.contexts.length || !domain.contexts.every((c) => typeof c === 'string')) {
+    errors.push("domain.contexts: expected a list of directories, such as ['.'].")
+  } else {
+    for (const context of domain.contexts) {
+      if (!isDirectory(join(projectDir, context))) errors.push(`domain.contexts: "${context}" does not exist in the project.`)
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files }, tdd: { files: tdd, testCommands } } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, tracker, domain } }
+}
+
+/** [value] as a regex: kept if it is one, compiled with [flags] if it is a string, else an error under [label]. */
+function toRegex(value, flags, label, errors) {
+  if (value instanceof RegExp) return value
+  if (typeof value !== 'string') {
+    errors.push(`${label} must be a regex or a string.`)
+    return null
+  }
+  try {
+    return new RegExp(value, flags)
+  } catch (error) {
+    errors.push(`${label} "${value}" is not a valid regex (${error.message.split(': ').pop()}).`)
+    return null
+  }
 }
 
 /**
- * Where [pack] is installed beside `core`, or null. Loaded in place (the source tree, or a
+ * Where [pack] is installed beside `core`, or null. `core`'s own fragment is not a pack. Loaded in place (the source tree, or a
  * marketplace added from a local directory) the plugins are siblings. Copied into Claude
  * Code's plugin cache, each sits under `<marketplace>/<plugin>/<version>/`, and the pack is
  * preferred at core's own version, else the most recently installed.
  */
 function packDir(pluginRoot, pack) {
+  if (pack === 'core') return null
   if (inPlace(pluginRoot)) {
     const sibling = join(pluginRoot, '..', pack)
     return isPack(sibling) ? sibling : null
