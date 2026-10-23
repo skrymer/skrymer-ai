@@ -184,3 +184,134 @@ test('a project TDD glob written from ./ is gated as if written from the project
   // Then
   assert.deepEqual(config.tdd.files, ['acme-scripts/**/*.kts'])
 })
+
+test('prompt rules merge pack first, then the project, then core’s own', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      stacks: { 'kotlin-spring': { roots: ['acme-api'] } },
+      skills: { prompts: [{ id: 'invoicing', pattern: /\\binvoic\\w*/i, skills: ['invoicing-rules'], why: 'Money rounds one way.' }] },
+    }`),
+    ['acme-api']
+  )
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(
+    config.skills.prompts.map((rule) => rule.id),
+    ['kotlin-test-layer', 'invoicing', 'tdd', 'grill-with-docs', 'write-a-skill', 'handoff']
+  )
+})
+
+test('a project prompt rule whose pattern is not a regex, or not a valid one, is an error naming the rule', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      skills: {
+        prompts: [
+          { id: 'invoicing', pattern: '(invoic', skills: ['invoicing-rules'], why: 'x' },
+          { id: 'tax', skills: ['tax-rules'], why: 'x' },
+        ],
+      },
+    }`)
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, {
+    errors: [
+      'skills.prompts "invoicing": pattern "(invoic" is not a valid regex (Unterminated group).',
+      'skills.prompts "tax": pattern must be a regex or a string.',
+    ],
+  })
+})
+
+test('a project prompt rule written as a string is matched case-insensitively', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{ skills: { prompts: [{ id: 'invoicing', pattern: '\\\\binvoic', skills: ['invoicing-rules'], why: 'x' }] } }`)
+  )
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.ok(config.skills.prompts.find((rule) => rule.id === 'invoicing').pattern.test('Fix the Invoice total'))
+})
+
+test('a config without tracker or domain gets GitHub with every role as its own label, and one context at the root', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{}`))
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(config.tracker, {
+    kind: 'github',
+    labels: {
+      bug: 'bug',
+      enhancement: 'enhancement',
+      'needs-triage': 'needs-triage',
+      'needs-info': 'needs-info',
+      'ready-for-agent': 'ready-for-agent',
+      'ready-for-human': 'ready-for-human',
+      wontfix: 'wontfix',
+    },
+  })
+  assert.deepEqual(config.domain, { contexts: ['.'] })
+})
+
+test('a project’s tracker labels replace only the roles it names', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{ tracker: { kind: 'local', labels: { 'needs-triage': 'triage', wontfix: 'declined' } } }`)
+  )
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.equal(config.tracker.kind, 'local')
+  assert.equal(config.tracker.labels['needs-triage'], 'triage')
+  assert.equal(config.tracker.labels.wontfix, 'declined')
+  assert.equal(config.tracker.labels['ready-for-agent'], 'ready-for-agent')
+})
+
+test('an unknown tracker kind, an unknown role and a label that is not a string are each an error', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{ tracker: { kind: 'jira', labels: { 'needs-review': 'review', wontfix: 7 } } }`)
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, {
+    errors: [
+      'tracker.kind: expected "github" or "local", not "jira".',
+      'tracker.labels: there is no role "needs-review". Roles: bug, enhancement, needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix.',
+      'tracker.labels.wontfix: expected a label name.',
+    ],
+  })
+})
+
+test('domain contexts that are not a list, or name a directory the project lacks, are an error', async () => {
+  // Given
+  const notAList = fixtureProject(configOf(`{ domain: { contexts: 'acme-api' } }`))
+  const missing = fixtureProject(configOf(`{ domain: { contexts: ['acme-api', 'globex-web'] } }`), ['acme-api'])
+
+  // When
+  const results = [await loadConfig(notAList, PLUGIN_ROOT), await loadConfig(missing, PLUGIN_ROOT)]
+
+  // Then
+  assert.deepEqual(results, [
+    { errors: ['domain.contexts: expected a list of directories, such as [\'.\'].'] },
+    { errors: ['domain.contexts: "globex-web" does not exist in the project.'] },
+  ])
+})
