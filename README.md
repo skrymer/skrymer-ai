@@ -57,3 +57,9 @@ A write to a TDD-gated file is judged by [Probity](https://github.com/nizos/prob
 ## Developing
 
 `npm run check` runs the leak check and every hook test (`node --test`, no dependencies). The leak check fails the build when a term from `leak-denylist.txt` — a consuming project's name or domain — appears anywhere: everything here must be generic, and project specifics belong in the project's config.
+
+`npm run evals` runs `core`'s skill evals (`plugins/core/evals/`) with `claude plugin eval`: an agent works each case in a throwaway workspace and graders score what it did. Run it before merging a change to a skill; `npm run evals -- --tag tdd` runs one skill's cases. It runs on your own Claude login, in a Docker container, and is not part of CI ([ADR 0007](docs/adr/0007-skill-evals-run-locally-before-a-skill-change-merges.md)). On Ubuntu 24.04 and later, the container needs an AppArmor profile that lets Claude Code's Bash sandbox create user namespaces. Load it once per boot:
+
+```sh
+sudo apparmor_parser -r scripts/evals/apparmor-profile
+```

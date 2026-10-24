@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test 'plugins/**/*.test.mjs' 'scripts/**/*.test.mjs'",
     "leak-check": "node scripts/leak-check.mjs",
-    "check": "npm run leak-check && npm test"
+    "check": "npm run leak-check && npm test",
+    "evals": "scripts/evals/run.sh"
   }
 }
