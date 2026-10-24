@@ -14,6 +14,11 @@
       "name": "kotlin-spring",
       "source": "./plugins/kotlin-spring",
       "description": "Kotlin / Spring Boot backend pack: the backend playbook and the stack's default rule fragments."
+    },
+    {
+      "name": "nuxt",
+      "source": "./plugins/nuxt",
+      "description": "Nuxt / Vue frontend pack: the frontend playbook, the component-testing conventions, the stack's default rule fragments and its Prettier + ESLint formatter."
     }
   ]
 }

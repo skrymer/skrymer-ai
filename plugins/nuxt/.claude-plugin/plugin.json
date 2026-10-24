@@ -1,0 +1,8 @@
+{
+  "name": "nuxt",
+  "description": "Nuxt / Vue frontend pack: the frontend playbook, the component-testing conventions, the stack's default rule fragments and its Prettier + ESLint formatter.",
+  "author": {
+    "name": "skrymer"
+  },
+  "dependencies": ["core"]
+}

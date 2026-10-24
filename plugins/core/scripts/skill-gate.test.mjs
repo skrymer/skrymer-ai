@@ -314,3 +314,50 @@ export default defineConfig({
   // Then
   assert.match(JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason, /\/billing-rules/)
 })
+
+const nuxtConfig = (...roots) => `
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  stacks: { nuxt: { roots: ${JSON.stringify(roots)} } },
+})
+`
+
+test('a Vitest test under a nuxt root is denied until nuxt:component-testing and nuxt:frontend-dev are loaded', () => {
+  // Given
+  const project = fixtureProject(nuxtConfig('acme-web'), ['acme-web'])
+
+  // When
+  const { stdout } = runHook(project, 'acme-web/app/components/InvoiceList.test.ts')
+
+  // Then
+  const reason = JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /\/nuxt:component-testing and \/nuxt:frontend-dev/)
+})
+
+test('a Vitest test under a nuxt root is allowed once its skills are loaded', () => {
+  // Given
+  const project = fixtureProject(nuxtConfig('acme-web'), ['acme-web'])
+
+  // When
+  const { status, stdout } = runHook(
+    project,
+    'acme-web/test/invoices.test.ts',
+    transcript(skillCall('nuxt:component-testing'))
+  )
+
+  // Then
+  assert.equal(status, 0)
+  assert.equal(stdout, '')
+})
+
+test('a Playwright spec under a nuxt root is not a Vitest test', () => {
+  // Given
+  const project = fixtureProject(nuxtConfig('acme-web'), ['acme-web'])
+
+  // When
+  const { stdout } = runHook(project, 'acme-web/e2e/invoices.spec.ts')
+
+  // Then
+  assert.equal(stdout, '')
+})

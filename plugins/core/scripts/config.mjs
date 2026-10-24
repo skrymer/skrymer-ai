@@ -58,6 +58,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const prompts = []
   const tdd = []
   const testCommands = []
+  const format = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -72,6 +73,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
+    const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
         errors.push(`stacks.${pack}.roots: "${root}" does not exist in the project.`)
@@ -81,6 +83,7 @@ export async function loadConfig(projectDir, pluginRoot) {
         files.push({ ...rule, path: new RegExp(`(^|/)${rootPrefix(root)}(?:${rule.path.source})`) })
       }
       for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
+      if (groups?.length) format.push({ root: trimRoot(root), groups })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -116,8 +119,27 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, tracker, domain, contextErrors } }
 }
+
+/** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */
+function validFormat(groups, label, errors) {
+  if (!Array.isArray(groups)) {
+    errors.push(`${label}: expected a list of groups, each { files: [globs], run: [commands] }.`)
+    return null
+  }
+  const before = errors.length
+  groups.forEach((group, i) => {
+    if (!isStrings(group?.files)) errors.push(`${label}[${i}].files: expected a list of globs.`)
+    if (!Array.isArray(group?.run) || !group.run.length || !group.run.every((command) => isStrings(command))) {
+      errors.push(`${label}[${i}].run: expected a list of commands, each a list of words, such as [['prettier', '--write']].`)
+    }
+  })
+  return errors.length === before ? groups : null
+}
+
+/** Whether [value] is a non-empty list of non-empty strings. */
+const isStrings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string' && item)
 
 /** [value] as a regex: kept if it is one, compiled with [flags] if it is a string, else an error under [label]. */
 function toRegex(value, flags, label, errors) {

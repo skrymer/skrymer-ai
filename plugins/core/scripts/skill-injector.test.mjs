@@ -133,7 +133,7 @@ test('an invalid config lets the prompt through and tells the user why no skills
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage:
-      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring.',
+      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt.',
   })
 })
 
