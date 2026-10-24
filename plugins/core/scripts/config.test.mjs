@@ -32,7 +32,7 @@ test('a stack with no such pack is an error naming the pack and the packs there 
 
   // Then
   assert.deepEqual(result, {
-    errors: ['stacks: there is no pack "acme-stack". Packs available: kotlin-spring.'],
+    errors: ['stacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt.'],
   })
 })
 
@@ -342,4 +342,107 @@ test('a project prompt rule without a list of skills or a reason is an error nam
       'skills.prompts "tax": why must say in one line why the skills apply.',
     ],
   })
+})
+
+test('a stack’s own format replaces its pack’s, under each of its roots', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      stacks: {
+        'kotlin-spring': {
+          roots: ['acme-api', './'],
+          format: [{ files: ['**/*.kt'], run: [['ktlint', '--format']] }],
+        },
+      },
+    }`),
+    ['acme-api']
+  )
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  const groups = [{ files: ['**/*.kt'], run: [['ktlint', '--format']] }]
+  assert.deepEqual(config.format, [
+    { root: 'acme-api', groups },
+    { root: '', groups },
+  ])
+})
+
+test('a stack whose pack has no formatter and that names none formats nothing', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] } } }`), ['acme-api'])
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(config.format, [])
+})
+
+test('a format group without file globs or without a list of commands is an error naming the stack and group', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{
+      stacks: {
+        'kotlin-spring': {
+          roots: ['acme-api'],
+          format: [
+            { files: '**/*.kt', run: [['ktlint', '--format']] },
+            { files: ['**/*.kts'], run: ['ktlint --format'] },
+            { files: ['**/*.md'], run: [[]] },
+          ],
+        },
+      },
+    }`),
+    ['acme-api']
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, {
+    errors: [
+      'stacks.kotlin-spring.format[0].files: expected a list of globs.',
+      "stacks.kotlin-spring.format[1].run: expected a list of commands, each a list of words, such as [['prettier', '--write']].",
+      "stacks.kotlin-spring.format[2].run: expected a list of commands, each a list of words, such as [['prettier', '--write']].",
+    ],
+  })
+})
+
+test('a format that is not a list of groups is an error, not a formatter that never runs', async () => {
+  // Given
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'], format: { files: ['**/*.kt'] } } } }`),
+    ['acme-api']
+  )
+
+  // When
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(result, {
+    errors: ['stacks.kotlin-spring.format: expected a list of groups, each { files: [globs], run: [commands] }.'],
+  })
+})
+
+test('a nuxt stack formats script and Vue files with prettier then eslint, and other text with prettier alone', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'] } } }`), ['acme-web'])
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
+  assert.deepEqual(config.format, [
+    {
+      root: 'acme-web',
+      groups: [
+        { files: ['**/*.{js,mjs,cjs,ts,mts,cts,vue}'], run: [prettier, ['pnpm', 'exec', 'eslint', '--fix']] },
+        { files: ['**/*.{json,css,md,yml,yaml}'], run: [prettier] },
+      ],
+    },
+  ])
 })
