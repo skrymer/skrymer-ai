@@ -7,9 +7,14 @@
 ```typescript
 // GOOD: Tests observable behavior
 test("user can checkout with valid cart", async () => {
+  // Given
   const cart = createCart();
   cart.add(product);
+
+  // When
   const result = await checkout(cart, paymentMethod);
+
+  // Then
   expect(result.status).toBe("confirmed");
 });
 ```
@@ -21,6 +26,7 @@ Characteristics:
 - Survives internal refactors
 - Describes WHAT, not HOW
 - One logical assertion per test
+- Marks its setup, its one action and its check with `// Given`, `// When` and `// Then` comments, so a reader sees what is arranged, what happens and what is expected
 
 ## Bad Tests
 
