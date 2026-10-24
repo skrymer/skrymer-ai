@@ -59,6 +59,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/format.mjs\"",
+            "timeout": 60,
+            "statusMessage": "Formatting the file with its stack’s formatter"
+          }
+        ]
+      }
     ]
   }
 }
