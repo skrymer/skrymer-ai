@@ -1,6 +1,6 @@
 ---
 type: regex
 target: { source: file, path: test/shipping.test.mjs }
-match: count:3
+match: not_contains
 ---
-// Given
+\b(test|it)\(.*\n(?![ \t]*// Given)

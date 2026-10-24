@@ -70,6 +70,8 @@ GREEN: Write minimal code to pass → test passes
 
 This is your tracer bullet - proves the path works end-to-end.
 
+**A bug fix starts the same way.** First write a test that reproduces the bug through the public interface, run it, and see it fail for the reason the bug report gives. Only then change the code. A fix with no failing test first has no proof that it fixed anything.
+
 ### 3. Incremental Loop
 
 For each remaining behavior:
@@ -103,6 +105,7 @@ After all tests pass, look for [refactor candidates](refactoring.md). Each smell
 ```
 [ ] Test describes behavior, not implementation
 [ ] Test uses public interface only
+[ ] Test marks its parts with // Given, // When, // Then
 [ ] Test would survive internal refactor
 [ ] Code is minimal for this test
 [ ] No speculative features added
