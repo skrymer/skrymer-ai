@@ -39,6 +39,12 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/tdd-gate.mjs\"",
             "timeout": 120,
             "statusMessage": "Probity: checking TDD"
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/duplication-gate.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking the branch for new duplication"
           }
         ]
       },

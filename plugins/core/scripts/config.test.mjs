@@ -446,3 +446,21 @@ test('a nuxt stack formats script and Vue files with prettier then eslint, and o
     },
   ])
 })
+
+test('a pack’s duplication-gate test globs land under every one of its roots, with its formats and remedy', async () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api', './'] } } }`), ['acme-api'])
+
+  // When
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then
+  assert.deepEqual(
+    config.duplication.map(({ pack, root, tests, formats }) => ({ pack, root, tests, formats })),
+    [
+      { pack: 'kotlin-spring', root: 'acme-api', tests: ['acme-api/src/*[tT]est*/**/*.kt'], formats: ['kotlin'] },
+      { pack: 'kotlin-spring', root: '', tests: ['src/*[tT]est*/**/*.kt'], formats: ['kotlin'] },
+    ]
+  )
+  assert.match(config.duplication[0].remedy, /Pull Up Method/)
+})

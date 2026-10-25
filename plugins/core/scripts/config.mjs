@@ -59,6 +59,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const tdd = []
   const testCommands = []
   const format = []
+  const duplication = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -84,6 +85,10 @@ export async function loadConfig(projectDir, pluginRoot) {
       }
       for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
       if (groups?.length) format.push({ root: trimRoot(root), groups })
+      if (Array.isArray(fragment.duplication?.tests)) {
+        const { tests, ...rest } = fragment.duplication
+        duplication.push({ ...rest, pack, root: trimRoot(root), tests: tests.map((glob) => `${globPrefix(root)}${glob}`) })
+      }
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -119,7 +124,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, tracker, domain, contextErrors } }
 }
 
 /** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */

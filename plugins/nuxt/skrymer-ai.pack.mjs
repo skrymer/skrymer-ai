@@ -17,6 +17,18 @@ export default {
     { files: ['**/*.{js,mjs,cjs,ts,mts,cts,vue}'], run: [prettier, ['pnpm', 'exec', 'eslint', '--fix']] },
     { files: ['**/*.{json,css,md,yml,yaml}'], run: [prettier] },
   ],
+  duplication: {
+    tests: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}'],
+    declaration: /(?<![\w.])(?:it|test)(?:\.\w+(?:\([^)]*\))?)*\s*\(/,
+    formats: ['typescript', 'vue'],
+    remedy:
+      'Use Extract Function: an inline composable when both copies share a file, a shared composable ' +
+      'or a component when they do not, and a function in utils/ for pure code. Slide Statements ' +
+      'first when the copies are interleaved with other code. A new utils/ export, or a new component, ' +
+      'prop or slot, is the exception, since the TDD gate refuses one no test drives: stub it, wrap ' +
+      'the copy you will delete in a transient jscpd:ignore pair, drive it red-green from the stub, ' +
+      'then replace both copies and drop the pair in the same edit.',
+  },
   skills: {
     prompts: [
       {

@@ -6,7 +6,7 @@ A Claude Code plugin marketplace holding one AI-assisted development workflow, s
 
 | Plugin | What it gives a project |
 |---|---|
-| `core` | Process skills (tdd, grill-me, grill-with-docs, to-prd, to-issues, triage, handoff, diagnose, prototype, improve-codebase-architecture, check-adrs, feature-sign-off, mutation-test, write-a-skill, setup) and the hook engines (skill injection, skill gate, clone gate, gated-write guard, test-output guard, formatter, Probity TDD gate) |
+| `core` | Process skills (tdd, grill-me, grill-with-docs, to-prd, to-issues, triage, handoff, diagnose, prototype, improve-codebase-architecture, check-adrs, feature-sign-off, mutation-test, write-a-skill, setup) and the hook engines (skill injection, skill gate, duplication gate, gated-write guard, test-output guard, formatter, Probity TDD gate) |
 | `kotlin-spring` | Kotlin / Spring Boot backend playbook, pitest, Detekt, Gradle conventions |
 | `react` | React playbook, component testing, Stryker, ESLint/Prettier |
 | `sindri` | Consumer guide for the Sindri component library (sourced from its own repo) |
@@ -63,6 +63,12 @@ Each group whose `files` globs match the file's path relative to the root runs i
 ### TDD gate
 
 A write to a TDD-gated file is judged by [Probity](https://github.com/nizos/probity), which `core` runs through `npx` at a pinned version, so the project needs no Probity config or install. The gated trees are each pack's source globs under its roots (`kotlin-spring`: `<root>/src/**/*.kt`; `nuxt`: `<root>/app/**/*.{ts,vue}`, `<root>/server/**/*.ts` and `<root>/shared/**/*.ts`) plus the project's `tdd.files`. The list is positive, so build output and generated code stay ungated. Two Bash guards keep the gate whole: a shell command can't write a gated file, and a test run can't be piped through `grep`, `head` or `tail`. The first gated write downloads Probity, which takes about 20 seconds. To use a local install instead, set `SKRYMER_AI_PROBITY` to the command that runs it, for example `node_modules/.bin/probity`. If Probity can't run, or runs past the hook's timeout, a gated write is denied with the reason.
+
+### Duplication gate
+
+A new test is refused while the branch holds duplicated source code it added, so the refactor step happens before the next red rather than at sign-off. A write counts as a new test when it lands on a file the pack's `duplication.tests` globs match (`kotlin-spring`: `<root>/src/*Test*/**/*.kt`, so integration tests and fixtures too; `nuxt`: `<root>/**/*.{test,spec}.{js,ts,…}`) and adds a test declaration. jscpd then scans that pack's TDD-gated trees under all of its roots, minus every pack's tests and whatever `.gitignore` leaves out, so Kotlin duplication never blocks a Vue test. A clone counts as the branch's when either copy overlaps a line the branch added or changed since it left origin's default branch (`origin/HEAD`, else `origin/main`), committed or not. A clone the branch only moved or didn't touch never blocks, and neither does one made only of imports, annotations and comments. The deny names each pair of copies and the refactorings out of it in the pack's terms. To keep a copy on purpose, wrap one side in `jscpd:ignore-start` / `jscpd:ignore-end` with a one-line reason.
+
+`core` runs [jscpd](https://github.com/kucherenko/jscpd) through `npx` at a pinned version, with a config of its own, so a project's `.jscpd.json` doesn't change what the gate sees. Set `SKRYMER_AI_JSCPD` to use another command. The gate fails open: a scan that can't run lets the write through with "duplication-gate skipped: …" and the cause. On the first run the gate starts jscpd's download in the background and skips that one scan.
 
 ## Developing
 
