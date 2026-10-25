@@ -9,6 +9,14 @@ export default {
     files: ['src/**/*.kt'],
     testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],
   },
+  duplication: {
+    tests: ['src/*[tT]est*/**/*.kt'],
+    declaration: /@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b|(?<![\w.])(?:it|test|should)\s*\(\s*"|^\s*"[^"\n]*"\s*\{/,
+    formats: ['kotlin'],
+    remedy:
+      'Use Extract Function, Slide Statements first when the copies are interleaved with other code, ' +
+      'or Pull Up Method when they sit in sibling classes.',
+  },
   skills: {
     prompts: [
       {
