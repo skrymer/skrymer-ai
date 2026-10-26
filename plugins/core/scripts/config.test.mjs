@@ -32,7 +32,7 @@ test('a stack with no such pack is an error naming the pack and the packs there 
 
   // Then
   assert.deepEqual(result, {
-    errors: ['stacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt.'],
+    errors: ['stacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt, web-e2e.'],
   })
 })
 

@@ -361,3 +361,34 @@ test('a Playwright spec under a nuxt root is not a Vitest test', () => {
   // Then
   assert.equal(stdout, '')
 })
+
+const e2eConfig = `
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  stacks: { nuxt: { roots: ['acme-web'] }, 'web-e2e': { roots: ['acme-web'] } },
+})
+`
+
+test('a Playwright spec under a web-e2e root is denied until web-e2e:playwright-best-practices and core:tdd are loaded', () => {
+  // Given
+  const project = fixtureProject(e2eConfig, ['acme-web'])
+
+  // When
+  const { stdout } = runHook(project, 'acme-web/e2e/invoices.spec.ts')
+
+  // Then
+  const reason = JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /\/web-e2e:playwright-best-practices and \/core:tdd/)
+})
+
+test('e2e support code under a web-e2e root needs only the Playwright practices', () => {
+  // Given
+  const project = fixtureProject(e2eConfig, ['acme-web'])
+
+  // When
+  const { stdout } = runHook(project, 'acme-web/e2e/support/fixtures.ts', transcript(skillCall('web-e2e:playwright-best-practices')))
+
+  // Then
+  assert.equal(stdout, '')
+})

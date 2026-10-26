@@ -19,6 +19,11 @@
       "name": "nuxt",
       "source": "./plugins/nuxt",
       "description": "Nuxt / Vue frontend pack: the frontend playbook, the component-testing conventions, the stack's default rule fragments and its Prettier + ESLint formatter."
+    },
+    {
+      "name": "web-e2e",
+      "source": "./plugins/web-e2e",
+      "description": "Browser end-to-end pack: Playwright best practices and the default rule fragments for e2e specs and their support code."
     }
   ]
 }
