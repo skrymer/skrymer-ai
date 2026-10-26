@@ -133,7 +133,7 @@ test('an invalid config lets the prompt through and tells the user why no skills
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage:
-      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt.',
+      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt, web-e2e.',
   })
 })
 
@@ -197,4 +197,15 @@ test('unreadable input fails open instead of blocking the prompt', () => {
   // Then
   assert.equal(status, 0)
   assert.equal(stdout, '')
+})
+
+test('an e2e prompt in a web-e2e project is reminded of the Playwright practices', () => {
+  // Given
+  const project = fixtureProject(configOf(`{ stacks: { 'web-e2e': { roots: ['acme-web'] } } }`), ['acme-web'])
+
+  // When
+  const context = injected(project, 'Write a Playwright check that the Acme invoice list loads')
+
+  // Then
+  assert.match(context, /^- \/web-e2e:playwright-best-practices — /m)
 })

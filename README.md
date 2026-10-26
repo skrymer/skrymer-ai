@@ -10,7 +10,7 @@ A Claude Code plugin marketplace holding one AI-assisted development workflow, s
 | `kotlin-spring` | Kotlin / Spring Boot backend playbook, pitest, Detekt, Gradle conventions |
 | `react` | React playbook, component testing, Stryker, ESLint/Prettier |
 | `sindri` | Consumer guide for the Sindri component library (sourced from its own repo) |
-| `web-e2e` | Browser walk-through verification, Playwright, MSW |
+| `web-e2e` | Playwright best practices, and the default rules for e2e specs and support code; browser walk-through verification and MSW to follow |
 | `nuxt` | Nuxt / Vue playbook, component-testing conventions, Vitest paths, Prettier + ESLint formatter |
 
 ## Adopting it

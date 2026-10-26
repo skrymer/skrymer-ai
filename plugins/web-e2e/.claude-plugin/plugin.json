@@ -1,0 +1,8 @@
+{
+  "name": "web-e2e",
+  "description": "Browser end-to-end pack: Playwright best practices and the default rule fragments for e2e specs and their support code.",
+  "author": {
+    "name": "skrymer"
+  },
+  "dependencies": ["core"]
+}
