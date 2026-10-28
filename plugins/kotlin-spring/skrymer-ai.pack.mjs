@@ -1,10 +1,13 @@
 /**
  * The kotlin-spring pack's default rule fragment. Each `path` and TDD glob is relative to a
- * stack root the project config names, so a project states only its roots. A test command
- * matches within one shell command. A prompt rule matches the words of a prompt, whatever
- * the roots.
+ * stack root the project config names, so a project states only its roots. `/core:setup`
+ * proposes a root wherever `detect` finds a Gradle build applying Spring Boot, and enables the
+ * `lsp` plugins. A test command matches within one shell command. A prompt rule matches the
+ * words of a prompt, whatever the roots.
  */
 export default {
+  detect: { files: ['build.gradle.kts', 'build.gradle'], contains: /org\.springframework\.boot/ },
+  lsp: ['kotlin-lsp@claude-plugins-official'],
   tdd: {
     files: ['src/**/*.kt'],
     testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],

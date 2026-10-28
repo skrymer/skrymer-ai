@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * SessionStart hook: tells the session which issue tracker the project uses, its label for
- * each triage role, and where its domain docs live. The process skills read this block; the
- * conventions for each tracker, and for reading domain docs, are core's reference files.
+ * each triage role, and where its domain docs live, or nudges toward `/core:setup` when the
+ * project has no config. The process skills read this block; the conventions for each
+ * tracker, and for reading domain docs, are core's reference files.
  *
  * Fails open on any error: a session always starts.
  */
@@ -10,7 +11,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadConfig } from './config.mjs'
+import { CONFIG_PATH, loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -44,7 +45,11 @@ async function main() {
     process.stdout.write(JSON.stringify({ systemMessage: message }))
     return
   }
-  if (!config) return
+  if (!config) {
+    const message = `skrymer-ai: this project has no ${CONFIG_PATH}, so its gates are off. Run /core:setup to adopt the workflow.`
+    process.stdout.write(JSON.stringify({ systemMessage: message }))
+    return
+  }
   process.stdout.write(
     JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: render(config) } })
   )

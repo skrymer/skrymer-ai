@@ -9,7 +9,7 @@ import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
-const PACK_FILE = 'skrymer-ai.pack.mjs'
+export const PACK_FILE = 'skrymer-ai.pack.mjs'
 
 /** The roles the process skills speak of, each mapped by default to a label of the same name. */
 const ROLES = ['bug', 'enhancement', 'needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
@@ -68,7 +68,9 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
     const dir = packDir(pluginRoot, pack)
     if (!dir) {
-      errors.push(`stacks: there is no pack "${pack}". Packs available: ${availablePacks(pluginRoot).join(', ')}.`)
+      const available = availablePacks(pluginRoot)
+      const where = available.length ? `Packs available: ${available.join(', ')}.` : 'No packs are installed beside core.'
+      errors.push(`stacks: there is no pack "${pack}". ${where}`)
       continue
     }
     const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
@@ -167,7 +169,7 @@ function toRegex(value, flags, label, errors) {
  * Code's plugin cache, each sits under `<marketplace>/<plugin>/<version>/`, and the pack is
  * preferred at core's own version, else the most recently installed.
  */
-function packDir(pluginRoot, pack) {
+export function packDir(pluginRoot, pack) {
   if (pack === 'core') return null
   if (inPlace(pluginRoot)) {
     const sibling = join(pluginRoot, '..', pack)
@@ -185,7 +187,7 @@ function packDir(pluginRoot, pack) {
 }
 
 /** The packs installed beside `core`. */
-function availablePacks(pluginRoot) {
+export function availablePacks(pluginRoot) {
   const plugins = inPlace(pluginRoot) ? join(pluginRoot, '..') : join(pluginRoot, '..', '..')
   return readdirSync(plugins)
     .filter((name) => packDir(pluginRoot, name))
