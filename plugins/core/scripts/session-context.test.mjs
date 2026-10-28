@@ -33,16 +33,16 @@ function runHook(project, input = JSON.stringify({ hook_event_name: 'SessionStar
 }
 
 test('a valid config starts the session with its tracker, label mapping and domain contexts', () => {
-  // Given
+  // Given a config with a local tracker, a relabelled role and two domain contexts
   const project = fixtureProject(
     configOf(`{ tracker: { kind: 'local', labels: { 'needs-triage': 'triage' } }, domain: { contexts: ['acme-api', 'acme-web'] } }`),
     ['acme-api', 'acme-web']
   )
 
-  // When
+  // When the session starts
   const { status, stdout } = runHook(project)
 
-  // Then
+  // Then the context block names the tracker, every label and both contexts
   assert.equal(status, 0)
   const output = JSON.parse(stdout).hookSpecificOutput
   assert.equal(output.hookEventName, 'SessionStart')
@@ -59,13 +59,13 @@ test('a valid config starts the session with its tracker, label mapping and doma
 })
 
 test('an invalid tracker or domain block starts the session with the config errors, and no context block', () => {
-  // Given
+  // Given a config with an unknown role and a missing domain context
   const project = fixtureProject(configOf(`{ tracker: { labels: { 'needs-review': 'review' } }, domain: { contexts: ['globex-web'] } }`))
 
-  // When
+  // When the session starts
   const { status, stdout } = runHook(project)
 
-  // Then
+  // Then it reports both errors and gives no context block
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage: [
@@ -76,17 +76,27 @@ test('an invalid tracker or domain block starts the session with the config erro
   })
 })
 
-test('a project without a config, or unreadable input, starts the session silently', () => {
-  // Given
-  const unconfigured = fixtureProject(undefined)
-  const configured = fixtureProject(configOf(`{}`))
+test('a project without a config starts the session with a one-line nudge to run setup', () => {
+  // Given a project without a config
+  const project = fixtureProject(undefined)
 
-  // When
-  const results = [runHook(unconfigured), runHook(configured, 'not json')]
+  // When the session starts
+  const { status, stdout } = runHook(project)
 
-  // Then
-  assert.deepEqual(results, [
-    { status: 0, stdout: '' },
-    { status: 0, stdout: '' },
-  ])
+  // Then it nudges toward /core:setup in one line
+  assert.equal(status, 0)
+  assert.deepEqual(JSON.parse(stdout), {
+    systemMessage: 'skrymer-ai: this project has no .claude/skrymer-ai.config.mjs, so its gates are off. Run /core:setup to adopt the workflow.',
+  })
+})
+
+test('unreadable input starts the session silently', () => {
+  // Given a configured project
+  const project = fixtureProject(configOf(`{}`))
+
+  // When the hook gets input that is not JSON
+  const result = runHook(project, 'not json')
+
+  // Then the session starts silently
+  assert.deepEqual(result, { status: 0, stdout: '' })
 })

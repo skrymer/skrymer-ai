@@ -1,14 +1,17 @@
 /**
  * The nuxt pack's default rule fragment. Each `path`, TDD glob and format glob is relative to
- * a stack root the project config names, so a project states only its roots. A test command
- * matches within one shell command. A prompt rule matches the words of a prompt, whatever
- * the roots. The formatter runs in the root, so the root's own Prettier and ESLint configs
- * apply; a project on another package manager or toolchain replaces it with its stack's
- * own `format`.
+ * a stack root the project config names, so a project states only its roots. `/core:setup`
+ * proposes a root wherever `detect` finds a Nuxt config, and enables the `lsp` plugins. A
+ * test command matches within one shell command. A prompt rule matches the words of a prompt,
+ * whatever the roots. The formatter runs in the root, so the root's own Prettier and ESLint
+ * configs apply; a project on another package manager or toolchain replaces it with its
+ * stack's own `format`.
  */
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
 export default {
+  detect: { files: ['nuxt.config.ts', 'nuxt.config.js', 'nuxt.config.mjs'] },
+  lsp: ['typescript-lsp@claude-plugins-official'],
   tdd: {
     files: ['app/**/*.{ts,vue}', 'server/**/*.ts', 'shared/**/*.ts'],
     testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test\b/],

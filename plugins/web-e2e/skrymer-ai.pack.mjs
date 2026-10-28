@@ -1,10 +1,13 @@
 /**
  * The web-e2e pack's default rule fragment. Each `path` is relative to a stack root the
  * project config names, the directory holding `playwright.config.*`, so a project states only
- * its roots. A test command matches within one shell command. A prompt rule matches the words
- * of a prompt, whatever the roots.
+ * its roots, and `/core:setup` proposes each such directory and enables the `lsp` plugins. A
+ * test command matches within one shell command. A prompt rule matches the words of a prompt,
+ * whatever the roots.
  */
 export default {
+  detect: { files: ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'] },
+  lsp: ['typescript-lsp@claude-plugins-official'],
   tdd: {
     testCommands: [/\bplaywright\s+test\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?(?:test:)?e2e\b/],
   },

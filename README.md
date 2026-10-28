@@ -22,7 +22,7 @@ Once per machine:
 /plugin install core@skrymer-ai
 ```
 
-Then in a project, run `/core:setup`. It detects the stacks, proposes the packs, and writes `.claude/settings.json`, `.claude/skrymer-ai.config.mjs` (the only project-specific config), git hooks, a CI template, and empty `CONTEXT.md` / `docs/adr/`. It is idempotent: re-running it adopts an existing repo, and `/core:setup --check` reports drift.
+Then in a project, run `/core:setup`. It detects the stacks from each pack's marker files (a Gradle build applying Spring Boot, `nuxt.config.*`, `playwright.config.*`) and shows a diff of every change before writing any. It creates `.claude/skrymer-ai.config.mjs` (the only project-specific config) and an empty `CONTEXT.md` and `docs/adr/`. It merges the marketplace, the packs and their code-intelligence plugins into `.claude/settings.json` (one write you approve, since Claude Code protects that file, and then you run the plugin installs it lists), keeps a workflow section in `CLAUDE.md` between markers, and removes a project's own Probity setup, since `core` runs Probity itself. An existing project config is never rewritten: setup prints the `stacks` entry to add instead. Re-running it plans nothing on a set-up repo and migrates an older one, and `/core:setup --check` reports drift without writing. Until a project has a config, each session starts with a one-line nudge to run it.
 
 ## Project config
 
@@ -48,7 +48,7 @@ export default defineConfig({
 
 On each prompt, `core` reminds the session of the skills whose `skills.prompts` rules match it: the packs' rules first, then the project's, then `core`'s own process rules (tdd, grill-with-docs, write-a-skill, handoff). A skill named by several matching rules is one reminder carrying every reason, a skill the prompt already invokes is left out, and a prompt gets at most three. A project rule's `pattern` is a regex, used as written, or a string, matched case-insensitively; it can set `worktreeScoped: true` for a skill a worktree serves its own copy of.
 
-At session start, `core` tells the session the issue tracker (`github` or `local`), the project's label for each triage role (`bug`, `enhancement`, `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`; each defaults to its own name) and the domain contexts, each a directory holding a `CONTEXT.md` and a `docs/adr/`. A config without `tracker` or `domain` gets GitHub and one context at the root; a project with no config gets no context block. A bad `tracker` or `domain` block only withholds this context, and the gates and reminders stay on.
+At session start, `core` tells the session the issue tracker (`github` or `local`), the project's label for each triage role (`bug`, `enhancement`, `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`; each defaults to its own name) and the domain contexts, each a directory holding a `CONTEXT.md` and a `docs/adr/`. A config without `tracker` or `domain` gets GitHub and one context at the root; a project with no config gets only the nudge to run `/core:setup`. A bad `tracker` or `domain` block only withholds this context, and the gates and reminders stay on.
 
 ### Formatter
 

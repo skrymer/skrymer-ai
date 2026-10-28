@@ -8,6 +8,8 @@ The run uses Sonnet as the agent, which is cheap enough to run three times per c
 
 Each run is a throwaway workspace with only `core` loaded, so the `SessionStart` and `UserPromptSubmit` hooks fire as in a project. A case that needs the session context seeds a `.claude/skrymer-ai.config.mjs`. A case's Bash runs in `bwrap` with its own network namespace. On Ubuntu 24.04 and later, AppArmor refuses that unless `/usr/bin/bwrap` has a profile allowing `userns`, and every Bash call then fails.
 
+The run's sandbox is stricter than an interactive session's, and a case is written for the sandbox it runs in. Protected paths such as `.claude/settings.json` are masked, so they can't even be read, and `dangerouslyDisableSandbox` is turned off. Only the plugin under test is visible, so a script in `core` finds no packs beside it, even ones a case lists under `plugins`. A skill whose real work touches them, like `/core:setup` ([0009](0009-setup-leaves-protected-settings-to-an-approved-write.md)), is graded on its trajectory: the command it runs (a `tool_used` grader on the Bash input), whether it relays the script's output faithfully, and what it leaves unwritten. A judge's criteria never depend on what the script finds in the harness. Its scripts' logic is covered by their own process tests. A case never asks the harness to lift its sandbox.
+
 ## Considered options
 
 - **Run the evals in CI on PRs that touch `plugins/core/skills/**`.** That catches a skipped run, but it needs an API key or an OAuth token as a repo secret, and every push to such a PR spends it.

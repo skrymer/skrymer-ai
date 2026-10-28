@@ -36,6 +36,20 @@ test('a stack with no such pack is an error naming the pack and the packs there 
   })
 })
 
+test('a stack named when no packs are installed beside core says there are none', async () => {
+  // Given a core installed alone and a config naming a pack
+  const lonelyCore = join(mkdtempSync(join(tmpdir(), 'config-plugins-')), 'core')
+  mkdirSync(lonelyCore)
+  writeFileSync(join(lonelyCore, 'skrymer-ai.pack.mjs'), 'export default {}\n')
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'] } } }`), ['acme-web'])
+
+  // When the config is loaded
+  const result = await loadConfig(project, lonelyCore)
+
+  // Then the error says no packs are installed beside core
+  assert.deepEqual(result, { errors: ['stacks: there is no pack "nuxt". No packs are installed beside core.'] })
+})
+
 test('a root that does not exist is an error naming the root and its stack', async () => {
   // Given
   const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['globex-api'] } } }`))
