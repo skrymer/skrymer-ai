@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -202,6 +202,23 @@ test('record refuses before head is stamped, and after the code changes under it
   result(dir, 'head', '8')
   writeFileSync(join(dir, 'web', 'page.ts'), 'export const page = 3\n')
   const after = result(dir, 'record', 'AC-8.1', 'desktop', 'pass', '--screenshot', 'shot.png')
+  assert.equal(after.status, 1)
+  assert.match(after.out, /the code changed since head was stamped/)
+})
+
+test('record refuses an edit that keeps the file\'s size and modification time', () => {
+  // Given head stamped on a project whose page git has already indexed
+  const dir = project()
+  result(dir, 'head', '8')
+  const page = join(dir, 'web', 'page.ts')
+  const { atime, mtime } = statSync(page)
+
+  // When the page changes to content of the same size, with its modification time put back
+  writeFileSync(page, 'export const page = 3\n')
+  utimesSync(page, atime, mtime)
+  const after = result(dir, 'record', 'AC-8.1', 'desktop', 'pass', '--screenshot', 'shot.png')
+
+  // Then the row is still refused as walked on other code
   assert.equal(after.status, 1)
   assert.match(after.out, /the code changed since head was stamped/)
 })

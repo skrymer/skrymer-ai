@@ -70,7 +70,9 @@ function head(projectDir, issue) {
 /**
  * `commit <sha>\ndiff <sha256>\n`: HEAD and a hash of everything uncommitted, untracked files
  * included, staged through a scratch index so the real one is left alone. `diff clean` when
- * nothing is.
+ * nothing is. The scratch index is read from HEAD's tree rather than copied from the real one:
+ * a copy carries the real index's cached file stats under a newer mtime, which defeats git's
+ * racy-clean check, so an edit that keeps a file's size within the same timestamp went unseen.
  */
 function stampOf(projectDir) {
   const top = git(projectDir, ['rev-parse', '--show-toplevel']).trim()
@@ -78,8 +80,7 @@ function stampOf(projectDir) {
   const scratch = mkdtempSync(join(tmpdir(), 'verify-index-'))
   try {
     const index = join(scratch, 'index')
-    const real = resolve(top, git(top, ['rev-parse', '--git-path', 'index']).trim())
-    if (existsSync(real)) copyFileSync(real, index)
+    if (commit) git(top, ['read-tree', 'HEAD'], { GIT_INDEX_FILE: index })
     git(top, ['add', '-A'], { GIT_INDEX_FILE: index })
     const diff = git(top, ['diff', '--cached', '--binary', '--no-color', 'HEAD'], { GIT_INDEX_FILE: index })
     return `commit ${commit}\ndiff ${diff ? createHash('sha256').update(diff).digest('hex') : 'clean'}\n`
