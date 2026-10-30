@@ -1,5 +1,7 @@
 # Mocking Strategy: Real vs Mock Services
 
+> **skrymer-ai:** the app's own API is mocked with the shared MSW handlers, not `page.route`, as the `web-e2e:msw` skill describes. Where this skill reaches for `page.route` on the app's API, `web-e2e:msw` takes precedence, and the pack's lint preset refuses it. `page.route` stays right for third-party hosts such as a CDN or analytics.
+
 ## Table of Contents
 
 1. [Core Principle](#core-principle)

@@ -1,6 +1,6 @@
 # Third-party notices
 
-The `playwright-best-practices` skill in `skills/` was copied from [currents-dev/playwright-best-practices-skill](https://github.com/currents-dev/playwright-best-practices-skill) (version 1.1), with seven links between its reference files corrected to point across directories. It is used under the MIT License below, which also ships as the skill's own `LICENSE.md`. An upstream release reaches projects only when it is copied in again deliberately.
+The `playwright-best-practices` skill in `skills/` was copied from [currents-dev/playwright-best-practices-skill](https://github.com/currents-dev/playwright-best-practices-skill) (version 1.1), with seven links between its reference files corrected to point across directories, and a note added to `README.md` and `architecture/when-to-mock.md` that the pack's `msw` skill takes precedence for mocking the app's API. It is used under the MIT License below, which also ships as the skill's own `LICENSE.md`. An upstream release reaches projects only when it is copied in again deliberately.
 
 ```
 Copyright © 2026 Currents Software Inc.

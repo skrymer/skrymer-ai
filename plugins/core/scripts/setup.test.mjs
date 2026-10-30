@@ -357,3 +357,66 @@ test('check counts a file it cannot read as drift', () => {
   assert.equal(status, 1)
   assert.deepEqual(stdout.trimEnd().split('\n').slice(1), ['- .claude/settings.json: setup cannot read it (EACCES).'])
 })
+
+/** An adopted repo with a Playwright root at web/ whose package.json declares [devDependencies]. */
+function playwrightRepo(devDependencies, extra = {}) {
+  const repo = fixtureRepo({
+    'web/playwright.config.ts': 'export default {}\n',
+    'web/package.json': JSON.stringify({ name: 'acme-web', devDependencies }),
+    ...extra,
+  })
+  adopt(repo)
+  return repo
+}
+
+test('check reports a dependency a pack has moved past, so its skills may be out of date', () => {
+  // Given a Playwright root declaring a newer msw major than web-e2e targets, and a matching @msw/playwright
+  const repo = playwrightRepo({ msw: '^4.1.0', '@msw/playwright': '^0.7.2' })
+
+  // When it is checked
+  const result = runSetup(repo, 'check')
+
+  // Then it names the package, the range the pack targets and the version found, and exits 1
+  assert.equal(result.status, 1)
+  assert.deepEqual(result.stdout.trimEnd().split('\n').slice(1), [
+    '- web/package.json: web-e2e targets msw ^3, but web has 4.1.0, so its skills may be out of date.',
+  ])
+})
+
+test('check reads the installed version over the declared range', () => {
+  // Given a range that admits the next major and an installed copy that is on it
+  const repo = playwrightRepo(
+    { msw: '>=3' },
+    { 'web/node_modules/msw/package.json': JSON.stringify({ name: 'msw', version: '4.0.0' }) },
+  )
+
+  // When it is checked
+  const result = runSetup(repo, 'check')
+
+  // Then the installed 4.0.0 is what it reports
+  assert.match(result.stdout, /web-e2e targets msw \^3, but web has 4\.0\.0,/)
+})
+
+test('a pre-1.0 package is out of range on a new minor, and an undeclared one is not reported', () => {
+  // Given @msw/playwright one minor past the pack's 0.x range and no msw at all
+  const repo = playwrightRepo({ '@msw/playwright': '~0.8.0' })
+
+  // When it is checked
+  const result = runSetup(repo, 'check')
+
+  // Then only @msw/playwright is reported
+  assert.deepEqual(result.stdout.trimEnd().split('\n').slice(1), [
+    '- web/package.json: web-e2e targets @msw/playwright ^0.7, but web has 0.8.0, so its skills may be out of date.',
+  ])
+})
+
+test('dependencies inside the ranges a pack targets are no drift', () => {
+  // Given a Playwright root on the majors web-e2e targets
+  const repo = playwrightRepo({ msw: '^3.0.1', '@msw/playwright': '^0.7.0' })
+
+  // When it is checked
+  const result = runSetup(repo, 'check')
+
+  // Then it reports no drift
+  assert.deepEqual(result, { status: 0, stdout: 'skrymer-ai: no drift.\n', stderr: '' })
+})

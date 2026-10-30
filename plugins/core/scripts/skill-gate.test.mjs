@@ -370,16 +370,30 @@ export default defineConfig({
 })
 `
 
-test('a Playwright spec under a web-e2e root is denied until web-e2e:playwright-best-practices and core:tdd are loaded', () => {
-  // Given
+test('a Playwright spec under a web-e2e root is denied until the Playwright, MSW and TDD skills are loaded', () => {
+  // Given a project with a web-e2e root at acme-web/
   const project = fixtureProject(e2eConfig, ['acme-web'])
 
-  // When
+  // When a spec under its e2e/ is written with no skill loaded
   const { stdout } = runHook(project, 'acme-web/e2e/invoices.spec.ts')
 
-  // Then
+  // Then the denial names all three skills
   const reason = JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason
-  assert.match(reason, /\/web-e2e:playwright-best-practices and \/core:tdd/)
+  assert.match(reason, /\/web-e2e:playwright-best-practices and \/web-e2e:msw and \/core:tdd/)
+})
+
+test('a mock handler under a web-e2e root is denied until web-e2e:msw is loaded, and allowed once it is', () => {
+  // Given a project with a web-e2e root at acme-web/
+  const project = fixtureProject(e2eConfig, ['acme-web'])
+  const handler = 'acme-web/test/mocks/handlers/invoices.ts'
+
+  // When a handler is written before and after the MSW skill loads
+  const denied = runHook(project, handler)
+  const allowed = runHook(project, handler, transcript(skillCall('web-e2e:msw')))
+
+  // Then the first is denied naming the MSW skill, and the second passes
+  assert.match(JSON.parse(denied.stdout).hookSpecificOutput.permissionDecisionReason, /\/web-e2e:msw with the Skill tool/)
+  assert.equal(allowed.stdout, '')
 })
 
 test('e2e support code under a web-e2e root needs only the Playwright practices', () => {
