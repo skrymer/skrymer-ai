@@ -269,7 +269,54 @@ function apply(projectDir, { changes }) {
   if (lines.length) process.stdout.write(`${lines.join('\n')}\n`)
 }
 
-/** Each way [projectDir] has drifted from the workflow: config errors, unlisted roots and pending changes. */
+/** The version a [range] such as `^3`, `~0.8.0` or `>=3` names first, as [major, minor], or null. */
+function versionIn(range) {
+  const match = /(\d+)(?:\.(\d+))?/.exec(range)
+  return match && [Number(match[1]), Number(match[2] ?? 0)]
+}
+
+/** Whether [version] is inside a pack's caret [range]: the same major, or the same minor below 1.0. */
+function inRange([major, minor], range) {
+  const [wantMajor, wantMinor] = versionIn(range)
+  return major === wantMajor && (major > 0 || minor === wantMinor)
+}
+
+/**
+ * For each listed stack root, each package a pack's `versions` targets that the root's
+ * package.json declares outside that range. The installed copy's version wins over the
+ * declared range, since a range like `>=3` says little about what runs.
+ */
+async function staleVersions(projectDir) {
+  const listed = await listedStacks(projectDir)
+  const stale = []
+  for (const { name, fragment } of await loadPacks()) {
+    const roots = listed[name]?.roots
+    if (!fragment.versions || !Array.isArray(roots)) continue
+    for (const root of roots) {
+      const manifest = join(root, 'package.json')
+      let declared
+      try {
+        const json = JSON.parse(readFileSync(join(projectDir, manifest), 'utf8'))
+        declared = { ...json.dependencies, ...json.devDependencies }
+      } catch {
+        continue
+      }
+      for (const [pkg, range] of Object.entries(fragment.versions)) {
+        if (typeof declared[pkg] !== 'string') continue
+        let found = declared[pkg].match(/\d+(?:\.\d+){0,2}/)?.[0]
+        try {
+          found = JSON.parse(readFileSync(join(projectDir, root, 'node_modules', pkg, 'package.json'), 'utf8')).version ?? found
+        } catch {}
+        if (!found || inRange(versionIn(found), range)) continue
+        const shown = found.split('.').concat(['0', '0']).slice(0, 3).join('.')
+        stale.push(`${manifest}: ${name} targets ${pkg} ${range}, but ${root} has ${shown}, so its skills may be out of date.`)
+      }
+    }
+  }
+  return stale
+}
+
+/** Each way [projectDir] has drifted from the workflow: config errors, unlisted roots, pending changes and stale packs. */
 async function drift(projectDir) {
   const { notes, unreadable, changes } = await plan(projectDir)
   const { errors = [] } = await loadConfig(projectDir, PLUGIN_ROOT)
@@ -277,6 +324,7 @@ async function drift(projectDir) {
     ...[...errors, ...notes].map((problem) => `${CONFIG_PATH}: ${problem}`),
     ...unreadable.map(({ path, code }) => `${path}: setup cannot read it (${code}).`),
     ...changes.map(({ path, action }) => `${path}: setup would ${action} it.`),
+    ...(await staleVersions(projectDir)),
   ]
 }
 

@@ -8,6 +8,8 @@
 
 # Playwright Best Practices Skill
 
+> **skrymer-ai:** the app's own API is mocked with the shared MSW handlers, not `page.route`, as the `web-e2e:msw` skill describes. Where this skill reaches for `page.route` on the app's API, `web-e2e:msw` takes precedence, and the pack's lint preset refuses it. `page.route` stays right for third-party hosts such as a CDN or analytics.
+
 A skill that gives the AI specialized guidance for writing, debugging, and maintaining **Playwright** tests in **TypeScript**. Use it in any repo where you work with Playwright so the assistant follows best practices for E2E, component, API, visual regression, accessibility, security, i18n, Electron, and browser extension testing.
 
 ## Installation

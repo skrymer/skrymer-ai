@@ -19,3 +19,7 @@ Project-specific content (a project's name, domain, paths or rationale) inside s
 **Survivors file**:
 What a mutation sweep leaves for triage: one line per mutant no test detected, `file:line<TAB>mutator → replacement<TAB>status`, with no header, so its line count is the survivor count. One per stack, in the repo's git dir under `skrymer-ai/mutation/`, beside the sweep's log. The sign-off's pack lint counts verdict rows against it.
 _Avoid_: copying survivors into a log by hand; a score in place of a verdict per line.
+
+**Verify results file**:
+What a verify walk-through (`/web-e2e:verify`) leaves for the AC coverage report: one row per acceptance criterion and target (a viewport on the web), `AC-<issue>.<n><TAB>target<TAB>status<TAB>screenshot<TAB>note`, with no header. The status is `pass`, `fail`, `blocked` or `not-visible`, and every status except `pass` carries a note. It lives in the repo's git dir under `skrymer-ai/verify/<issue>/`, beside the screenshots and the `head` the walk-through ran on.
+_Avoid_: a prose verdict as the record; an AC with no row.
