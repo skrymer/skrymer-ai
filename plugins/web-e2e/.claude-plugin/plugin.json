@@ -1,6 +1,6 @@
 {
   "name": "web-e2e",
-  "description": "Browser end-to-end pack: Playwright best practices and the default rule fragments for e2e specs and their support code.",
+  "description": "Browser end-to-end pack: Playwright best practices, MSW mocking, the browser walk-through of an issue's acceptance criteria, and the default rule fragments for e2e specs and their support code.",
   "author": {
     "name": "skrymer"
   },
