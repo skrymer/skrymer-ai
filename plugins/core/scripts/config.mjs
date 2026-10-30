@@ -61,6 +61,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const format = []
   const duplication = []
   const mutation = []
+  const verify = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -78,6 +79,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
     const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
+    const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -98,6 +100,7 @@ export async function loadConfig(projectDir, pluginRoot) {
         const notes = engine.notes && join(dir, engine.notes)
         mutation.push({ ...engine, pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
       }
+      if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -133,7 +136,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, tracker, domain, contextErrors } }
 }
 
 /** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */
@@ -171,6 +174,88 @@ function validMutation(override, label, errors) {
   if (override.memory !== undefined && !/^\d+[KMGT]?$/.test(override.memory)) errors.push(`${label}.memory: expected a size such as '8G'.`)
   return override
 }
+
+const VERIFY_FIELDS = ['targets', 'stack', 'dev', 'user', 'api']
+const UP = "such as ['docker', 'compose', 'up', '-d']"
+const DOWN = "such as ['docker', 'compose', 'down']"
+
+/**
+ * A stack's verify block, `{ targets?, stack?, dev?, user?, api? }`: the targets a walk-through
+ * runs at, the commands that bring the stack and an optional disposable database up and down
+ * (in the project root), the dev server and the pattern whose first group reads its URL from
+ * the log, the command that mints a test user for `{email}` and the env file it lands in, and
+ * the API the probe drives through the dev proxy. An empty object when there is none; an
+ * error under [label] for each bad field. The API's CSRF priming path and its auth header
+ * get their defaults here, so the scripts read one shape.
+ */
+function validVerify(block, label, errors) {
+  if (block === undefined) return {}
+  if (!isObject(block)) {
+    errors.push(`${label}: expected { ${VERIFY_FIELDS.join(', ')} }.`)
+    return {}
+  }
+  for (const field of Object.keys(block)) {
+    if (!VERIFY_FIELDS.includes(field)) errors.push(`${label}: there is no field "${field}". Fields: ${VERIFY_FIELDS.join(', ')}.`)
+  }
+  const { targets, stack, dev, user, api } = block
+  const command = (value, field, example) => {
+    if (!isStrings(value)) errors.push(`${label}.${field}: expected a command as a list of words, ${example}.`)
+  }
+  const size = (value) => Array.isArray(value) && value.length === 2 && value.every((n) => Number.isInteger(n) && n > 0)
+  if (targets !== undefined && !(isObject(targets) && Object.keys(targets).length && Object.entries(targets).every(([name, value]) => /^[a-z0-9-]+$/.test(name) && size(value)))) {
+    errors.push(`${label}.targets: expected { name: [width, height] } with names of lowercase letters, digits and dashes, such as { desktop: [1440, 900] }.`)
+  }
+  if (stack !== undefined) {
+    command(stack?.up, 'stack.up', UP)
+    command(stack?.down, 'stack.down', DOWN)
+    if (stack?.disposableDb !== undefined) {
+      command(stack.disposableDb?.up, 'stack.disposableDb.up', UP)
+      command(stack.disposableDb?.down, 'stack.disposableDb.down', DOWN)
+    }
+  }
+  let ready
+  if (dev !== undefined) {
+    command(dev?.run, 'dev.run', "such as ['pnpm', 'dev']")
+    if (dev?.port !== undefined && !(Number.isInteger(dev.port) && dev.port > 0 && dev.port < 65536)) errors.push(`${label}.dev.port: expected a port number.`)
+    ready = urlPattern(dev?.ready)
+    if (!ready) errors.push(`${label}.dev.ready: expected a regex whose first group captures the URL the dev log reports, such as /Local:\\s+(http\\S+)/.`)
+  }
+  if (user !== undefined) {
+    if (!(isStrings(user?.mint) && user.mint.some((word) => word.includes('{email}')))) {
+      errors.push(`${label}.user.mint: expected a command as a list of words, one holding {email}, such as ['node', 'scripts/mint-user.mjs', '--email', '{email}'].`)
+    }
+    if (user?.env !== undefined && !isStrings([user.env?.file, user.env?.key])) {
+      errors.push(`${label}.user.env: expected { file, key }, such as { file: '.env', key: 'ACME_DEV_TOKEN' }.`)
+    }
+  }
+  let probe
+  if (api !== undefined) {
+    if (!(typeof api?.base === 'string' && api.base.startsWith('/'))) errors.push(`${label}.api.base: expected a path starting with /, such as '/api'.`)
+    const csrf = api?.csrf && { prime: '', ...api.csrf }
+    if (csrf !== undefined && !(isStrings([csrf?.cookie, csrf?.header]) && typeof csrf.prime === 'string')) {
+      errors.push(`${label}.api.csrf: expected { cookie, header }, such as { cookie: 'XSRF-TOKEN', header: 'X-XSRF-TOKEN' }.`)
+    }
+    const auth = api?.auth ?? { header: 'Authorization', value: 'Bearer {token}' }
+    if (!(isStrings([auth?.header, auth?.value]) && auth.value.includes('{token}'))) {
+      errors.push(`${label}.api.auth: expected { header, value } with {token} in the value, such as { header: 'Authorization', value: 'Bearer {token}' }.`)
+    }
+    probe = { ...api, ...(csrf && { csrf }), auth }
+  }
+  return { ...block, ...(dev && { dev: { ...dev, ready } }), ...(probe && { api: probe }) }
+}
+
+/** [value], a regex or its source, if it compiles and has a group to capture a URL, else null. */
+function urlPattern(value) {
+  if (!(value instanceof RegExp) && typeof value !== 'string') return null
+  try {
+    const pattern = new RegExp(value)
+    return new RegExp(`${pattern.source}|`).exec('').length > 1 ? pattern : null
+  } catch {
+    return null
+  }
+}
+
+const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** Whether [value] is a non-empty list of non-empty strings. */
 const isStrings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string' && item)

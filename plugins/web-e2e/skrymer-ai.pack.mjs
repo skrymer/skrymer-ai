@@ -4,12 +4,14 @@
  * its roots, and `/core:setup` proposes each such directory and enables the `lsp` plugins. A
  * test command matches within one shell command. A prompt rule matches the words of a prompt,
  * whatever the roots. `versions` are the caret ranges this pack's skills are written for;
- * `/core:setup --check` reports a root whose package.json has moved outside one.
+ * `/core:setup --check` reports a root whose package.json has moved outside one. `verify.targets`
+ * are the viewports a walk-through runs at, unless the project's verify block names its own.
  */
 export default {
   detect: { files: ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'] },
   lsp: ['typescript-lsp@claude-plugins-official'],
   versions: { msw: '^3', '@msw/playwright': '^0.7', '@playwright/test': '^1' },
+  verify: { targets: { desktop: [1440, 900], phone: [390, 844] } },
   tdd: {
     testCommands: [/\bplaywright\s+test\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?(?:test:)?e2e\b/],
   },
