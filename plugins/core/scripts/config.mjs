@@ -60,6 +60,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const testCommands = []
   const format = []
   const duplication = []
+  const mutation = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -76,6 +77,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
+    const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -90,6 +92,11 @@ export async function loadConfig(projectDir, pluginRoot) {
       if (Array.isArray(fragment.duplication?.tests)) {
         const { tests, ...rest } = fragment.duplication
         duplication.push({ ...rest, pack, root: trimRoot(root), tests: tests.map((glob) => `${globPrefix(root)}${glob}`) })
+      }
+      if (engine) {
+        const under = (globs) => globs.map((glob) => `${globPrefix(root)}${glob}`)
+        const notes = engine.notes && join(dir, engine.notes)
+        mutation.push({ ...engine, pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
       }
     }
   }
@@ -126,7 +133,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     }
   }
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, tracker, domain, contextErrors } }
 }
 
 /** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */
@@ -143,6 +150,26 @@ function validFormat(groups, label, errors) {
     }
   })
   return errors.length === before ? groups : null
+}
+
+/**
+ * A stack's mutation override, `{ run?, report?, memory? }`: the engine command as a list of
+ * words where `{targets}` stands for the scope, the report path relative to the root, and the
+ * memory cap as systemd writes it (`8G`). An empty object when there is none; an error under
+ * [label] for each bad field.
+ */
+function validMutation(override, label, errors) {
+  if (override === undefined) return {}
+  if (typeof override !== 'object' || override === null) {
+    errors.push(`${label}: expected { run, report, memory }.`)
+    return {}
+  }
+  if (override.run !== undefined && !(isStrings(override.run) && override.run.some((word) => word.includes('{targets}')))) {
+    errors.push(`${label}.run: expected a command as a list of words, one holding {targets}, such as ['./gradlew', 'mutationTest', '-Ptargets={targets}'].`)
+  }
+  if (override.report !== undefined && !isStrings([override.report])) errors.push(`${label}.report: expected a path relative to the root.`)
+  if (override.memory !== undefined && !/^\d+[KMGT]?$/.test(override.memory)) errors.push(`${label}.memory: expected a size such as '8G'.`)
+  return override
 }
 
 /** Whether [value] is a non-empty list of non-empty strings. */

@@ -19,11 +19,12 @@
  * clean one (ADR 0008).
  */
 
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { branchOf } from './branch.mjs'
 import { loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -95,42 +96,23 @@ function scanDirs(projectDir, stacks, tddFiles) {
  * doesn't track yet is new throughout; a renamed file counts only its changed lines.
  */
 function branchChanges(projectDir) {
-  const top = git(projectDir, 'rev-parse', '--show-toplevel')
-  const base = git(top, 'merge-base', 'HEAD', baseline(top))
+  const { top, base, git, untracked } = branchOf(projectDir, { timeout: TIMEOUT_MS })
   const changed = new Map()
   let path = null
-  for (const line of git(top, '-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '-U0', base).split('\n')) {
+  for (const line of git('-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '-U0', base).split('\n')) {
     if (line.startsWith('+++ ')) path = line === '+++ /dev/null' ? null : line.slice(6)
     const hunk = path && /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line)
     if (!hunk || hunk[2] === '0') continue
     const from = Number(hunk[1])
     changed.set(path, [...(changed.get(path) ?? []), [from, from + Number(hunk[2] ?? 1) - 1]])
   }
-  for (const file of git(top, 'ls-files', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean)) {
+  for (const file of untracked()) {
     changed.set(file, [[1, Infinity]])
   }
   return {
     touches: ({ file, start, end }) =>
       (changed.get(relative(top, join(projectDir, file))) ?? []).some(([from, to]) => from <= end && start <= to),
   }
-}
-
-/** origin's default branch, as `origin/HEAD` names it, else `origin/main`, whichever exists. */
-function baseline(top) {
-  const head = spawnSync('git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], { cwd: top, encoding: 'utf8' }).stdout?.trim()
-  const ref = [head, 'origin/main'].find(
-    (candidate) => candidate && spawnSync('git', ['rev-parse', '--verify', '--quiet', `${candidate}^{commit}`], { cwd: top }).status === 0
-  )
-  if (ref) return ref
-  throw new Error('no baseline to compare with: neither origin/HEAD nor origin/main exists. `git remote set-head origin -a` sets origin/HEAD.')
-}
-
-/** The output of `git [args]` run in [cwd], or an error carrying git's own last word. */
-function git(cwd, ...args) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
-  if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(`git: ${result.stderr.trim().split('\n').at(-1)}`)
-  return result.stdout.trim()
 }
 
 /**
