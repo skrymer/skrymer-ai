@@ -15,3 +15,7 @@ A `core` hook whose logic is generic and whose data (paths, patterns, rules) com
 
 **Leak**:
 Project-specific content (a project's name, domain, paths or rationale) inside skrymer-ai. Caught by the leak check in CI.
+
+**Survivors file**:
+What a mutation sweep leaves for triage: one line per mutant no test detected, `file:line<TAB>mutator → replacement<TAB>status`, with no header, so its line count is the survivor count. One per stack, in the repo's git dir under `skrymer-ai/mutation/`, beside the sweep's log. The sign-off's pack lint counts verdict rows against it.
+_Avoid_: copying survivors into a log by hand; a score in place of a verdict per line.

@@ -187,6 +187,7 @@ How the moves land in Vue:
 ## Exit
 
 When the change works and is tested, run **`feature-sign-off`** before committing. Its
-mutation gate scopes the project's mutation tool (StrykerJS) to the files the change touched,
-and every survivor gets a verdict. A slice that also moved the backend runs the backend
+mutation gate is **`core:mutation-test`**, which scopes StrykerJS to the files the change touched,
+and every survivor gets a verdict. Stryker's config contract and blind spots are in
+[references/stryker.md](references/stryker.md). A slice that also moved the backend runs the backend
 pack's half of that gate in the same pass.

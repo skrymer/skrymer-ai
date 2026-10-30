@@ -478,3 +478,55 @@ test('a pack’s duplication-gate test globs land under every one of its roots, 
   )
   assert.match(config.duplication[0].remedy, /Pull Up Method/)
 })
+
+test('a pack’s mutation engine lands under every one of its roots, with a stack’s override in place of its defaults', async () => {
+  // Given kotlin-spring under two roots, one stack overriding the run command and memory cap
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api', './'], mutation: { run: ['./gradlew', 'pitest', '-Ptargets={targets}'], memory: '4G' } } } }`),
+    ['acme-api']
+  )
+
+  // When the config loads
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each root has the engine with root-prefixed source and test globs, the override's run and memory, and the pack's report and notes
+  assert.deepEqual(
+    config.mutation.map(({ pack, root, engine, source, tests, run, report, memory }) => ({ pack, root, engine, source, tests, run, report, memory })),
+    [
+      { pack: 'kotlin-spring', root: 'acme-api', engine: 'pitest', source: ['acme-api/src/main/kotlin/**/*.kt'], tests: ['acme-api/src/*[tT]est*/**/*.kt'], run: ['./gradlew', 'pitest', '-Ptargets={targets}'], report: 'build/reports/pitest/mutations.xml', memory: '4G' },
+      { pack: 'kotlin-spring', root: '', engine: 'pitest', source: ['src/main/kotlin/**/*.kt'], tests: ['src/*[tT]est*/**/*.kt'], run: ['./gradlew', 'pitest', '-Ptargets={targets}'], report: 'build/reports/pitest/mutations.xml', memory: '4G' },
+    ]
+  )
+  assert.match(config.mutation[0].notes, /kotlin-spring\/skills\/backend-dev\/references\/pitest\.md$/)
+})
+
+test('a mutation override with a run that never names the targets, a bad report or a bad memory cap is an error per field', async () => {
+  // Given a nuxt stack whose override would sweep the whole surface, names no report path and caps memory in words
+  const project = fixtureProject(
+    configOf(`{ stacks: { nuxt: { roots: ['acme-web'], mutation: { run: ['pnpm', 'test:mutation'], report: 42, memory: 'lots' } } } }`),
+    ['acme-web']
+  )
+
+  // When the config loads
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each bad field is named under the stack
+  assert.deepEqual(result, {
+    errors: [
+      "stacks.nuxt.mutation.run: expected a command as a list of words, one holding {targets}, such as ['./gradlew', 'mutationTest', '-Ptargets={targets}'].",
+      'stacks.nuxt.mutation.report: expected a path relative to the root.',
+      "stacks.nuxt.mutation.memory: expected a size such as '8G'.",
+    ],
+  })
+})
+
+test('a stack whose pack has no mutation engine sweeps nothing', async () => {
+  // Given only the web-e2e pack, which carries no engine
+  const project = fixtureProject(configOf(`{ stacks: { 'web-e2e': { roots: ['acme-e2e'] } } }`), ['acme-e2e'])
+
+  // When the config loads
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then there is no mutation stack
+  assert.deepEqual(config.mutation, [])
+})

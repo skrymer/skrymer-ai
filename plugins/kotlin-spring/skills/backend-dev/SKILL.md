@@ -153,5 +153,6 @@ How the moves land:
 ## Exit
 
 When the change works and is tested, run **`feature-sign-off`** before committing. Its
-mutation gate scopes pitest to the classes the change touched, and every survivor gets a
-verdict.
+mutation gate is **`core:mutation-test`**, which scopes pitest to the classes the change touched,
+and every survivor gets a verdict. pitest's build contract and blind spots are in
+[references/pitest.md](references/pitest.md).
