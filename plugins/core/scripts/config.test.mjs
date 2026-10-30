@@ -530,3 +530,83 @@ test('a stack whose pack has no mutation engine sweeps nothing', async () => {
   // Then there is no mutation stack
   assert.deepEqual(config.mutation, [])
 })
+
+test('a web-e2e stack verifies at the pack’s default targets, with the project’s verify block under its root', async () => {
+  // Given a web-e2e stack whose verify block names its dev server, user minting and API
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'web-e2e': { roots: ['acme-web'], verify: {
+      stack: { up: ['docker', 'compose', 'up', '-d'], down: ['docker', 'compose', 'down'], disposableDb: { up: ['make', 'db-up'], down: ['make', 'db-down'] } },
+      dev: { run: ['pnpm', 'dev'], port: 3000, ready: /Local:\\s+(http\\S+)/ },
+      user: { mint: ['node', 'scripts/mint-user.mjs', '--email', '{email}'], env: { file: '.env', key: 'ACME_DEV_TOKEN' } },
+      api: { base: '/api', csrf: { cookie: 'XSRF-TOKEN', header: 'X-XSRF-TOKEN' } },
+    } } } }`),
+    ['acme-web']
+  )
+
+  // When the config loads
+  const { config, errors } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the stack verifies under its root at desktop and phone, with the project's commands and its API's auth defaulted
+  assert.equal(errors, undefined)
+  assert.deepEqual(config.verify, [
+    {
+      pack: 'web-e2e',
+      root: 'acme-web',
+      targets: { desktop: [1440, 900], phone: [390, 844] },
+      stack: { up: ['docker', 'compose', 'up', '-d'], down: ['docker', 'compose', 'down'], disposableDb: { up: ['make', 'db-up'], down: ['make', 'db-down'] } },
+      dev: { run: ['pnpm', 'dev'], port: 3000, ready: /Local:\s+(http\S+)/ },
+      user: { mint: ['node', 'scripts/mint-user.mjs', '--email', '{email}'], env: { file: '.env', key: 'ACME_DEV_TOKEN' } },
+      api: { base: '/api', csrf: { cookie: 'XSRF-TOKEN', header: 'X-XSRF-TOKEN', prime: '' }, auth: { header: 'Authorization', value: 'Bearer {token}' } },
+    },
+  ])
+})
+
+test('a project’s verify targets replace the pack’s, and a stack with no verify block still has them', async () => {
+  // Given one web-e2e root that only overrides its targets, and a kotlin-spring stack whose pack never verifies
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'web-e2e': { roots: ['acme-web'], verify: { targets: { tablet: [820, 1180] } } }, 'kotlin-spring': { roots: ['acme-api'] } } }`),
+    ['acme-web', 'acme-api']
+  )
+
+  // When the config loads
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then only the web-e2e root verifies, at the tablet target alone, with nothing to start
+  assert.deepEqual(config.verify, [{ pack: 'web-e2e', root: 'acme-web', targets: { tablet: [820, 1180] } }])
+})
+
+test('a verify block with bad targets, commands, ready pattern, user or API is an error per field', async () => {
+  // Given a verify block wrong in every field
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'web-e2e': { roots: ['acme-web'], verify: {
+      targets: { 'big screen': [1440], phone: [390, 844] },
+      stack: { up: 'docker compose up', disposableDb: { up: ['make', 'db-up'] } },
+      dev: { run: ['pnpm', 'dev'], port: 'three thousand', ready: '(unclosed' },
+      user: { mint: ['node', 'mint.mjs'], env: { file: '.env' } },
+      api: { base: 'api', csrf: { cookie: 'XSRF-TOKEN' }, auth: { header: 'Authorization', value: 'Bearer' } },
+      seed: ['x'],
+    } } } }`),
+    ['acme-web']
+  )
+
+  // When the config loads
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each bad field is named under the stack, so the session starts with the config error
+  assert.deepEqual(result, {
+    errors: [
+      'stacks.web-e2e.verify: there is no field "seed". Fields: targets, stack, dev, user, api.',
+      "stacks.web-e2e.verify.targets: expected { name: [width, height] } with names of lowercase letters, digits and dashes, such as { desktop: [1440, 900] }.",
+      "stacks.web-e2e.verify.stack.up: expected a command as a list of words, such as ['docker', 'compose', 'up', '-d'].",
+      "stacks.web-e2e.verify.stack.down: expected a command as a list of words, such as ['docker', 'compose', 'down'].",
+      "stacks.web-e2e.verify.stack.disposableDb.down: expected a command as a list of words, such as ['docker', 'compose', 'down'].",
+      'stacks.web-e2e.verify.dev.port: expected a port number.',
+      'stacks.web-e2e.verify.dev.ready: expected a regex whose first group captures the URL the dev log reports, such as /Local:\\s+(http\\S+)/.',
+      "stacks.web-e2e.verify.user.mint: expected a command as a list of words, one holding {email}, such as ['node', 'scripts/mint-user.mjs', '--email', '{email}'].",
+      "stacks.web-e2e.verify.user.env: expected { file, key }, such as { file: '.env', key: 'ACME_DEV_TOKEN' }.",
+      "stacks.web-e2e.verify.api.base: expected a path starting with /, such as '/api'.",
+      "stacks.web-e2e.verify.api.csrf: expected { cookie, header }, such as { cookie: 'XSRF-TOKEN', header: 'X-XSRF-TOKEN' }.",
+      "stacks.web-e2e.verify.api.auth: expected { header, value } with {token} in the value, such as { header: 'Authorization', value: 'Bearer {token}' }.",
+    ],
+  })
+})
