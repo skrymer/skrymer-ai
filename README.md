@@ -22,7 +22,7 @@ Once per machine:
 /plugin install core@skrymer-ai
 ```
 
-Then in a project, run `/core:setup`. It detects the stacks from each pack's marker files (a Gradle build applying Spring Boot, `nuxt.config.*`, `playwright.config.*`) and shows a diff of every change before writing any. It creates `.claude/skrymer-ai.config.mjs` (the only project-specific config) and an empty `CONTEXT.md` and `docs/adr/`. It merges the marketplace, the packs and their code-intelligence plugins into `.claude/settings.json` (one write you approve, since Claude Code protects that file, and then you run the plugin installs it lists), keeps a workflow section in `CLAUDE.md` between markers, and removes a project's own Probity setup, since `core` runs Probity itself. An existing project config is never rewritten: setup prints the `stacks` entry to add instead. Re-running it plans nothing on a set-up repo and migrates an older one, and `/core:setup --check` reports drift without writing. Until a project has a config, each session starts with a one-line nudge to run it.
+Then in a project, run `/core:setup`. It detects the stacks from each pack's marker files (a Gradle build applying Spring Boot, `nuxt.config.*`, `playwright.config.*`) and shows a diff of every change before writing any. It creates `.claude/skrymer-ai.config.mjs` (the only project-specific config) and an empty `CONTEXT.md` and `docs/adr/`. It merges the marketplace, the packs and their code-intelligence plugins into `.claude/settings.json` (one write you approve, since Claude Code protects that file, and then you run the plugin installs it lists), keeps a workflow section in `CLAUDE.md` between markers, and removes a project's own Probity setup, since `core` runs Probity itself. It also renders a pre-commit hook and a CI workflow (see [Pre-commit hook and CI](#pre-commit-hook-and-ci)). An existing project config is never rewritten: setup prints the `stacks` entry to add instead. Re-running it plans nothing on a set-up repo and migrates an older one, and `/core:setup --check` reports drift without writing. Until a project has a config, each session starts with a one-line nudge to run it.
 
 ## Project config
 
@@ -85,6 +85,20 @@ stacks: { nuxt: { roots: ['web'], check: [['npm', 'run', 'lint'], ['npm', 'test'
 ```
 
 Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
+
+### Pre-commit hook and CI
+
+The committed hook and workflow can't call into the plugin, since its path differs on every machine and CI doesn't have it, so `/core:setup` bakes each stack root's commands into them. Each pack has two commands, and a stack can replace either with its own `lint` or `check`:
+
+- **`lint`** is fast and runs in `.githooks/pre-commit`, only for roots with staged files (`kotlin-spring`: `./gradlew detekt`; `nuxt`: `pnpm exec eslint` on the root's staged files and `pnpm typecheck`, or `pnpm exec lint-staged` when the root configures lint-staged). A command whose last word is `{staged}` gets the root's staged files, relative to the root:
+
+  ```js
+  stacks: { nuxt: { roots: ['web'], lint: [['npx', 'biome', 'check', '{staged}']] } }
+  ```
+
+- **`check`** is the full build and test. It runs in the sign-off and in `.github/workflows/skrymer-ai.yml`, which has one job per stack root: the pack's setup steps (`kotlin-spring`: the JDK the Gradle toolchain names, else 21, and Gradle with its cache; `nuxt`: pnpm as `packageManager` pins it, Node from `.nvmrc`, and the install), then `check`. The workflow is GitHub Actions only, so setup skips it when `tracker.kind` isn't `github`.
+
+Each file holds a generated block between `# skrymer-ai:start` and `# skrymer-ai:end`. Setup rewrites the block, keeps your edits outside it, and `--check` reports a block that has drifted from the config or a pack. Setup sets `core.hooksPath` to `.githooks` in the clone's local git config, and `--check` reports it when it isn't set. A project on husky or a hooks path of its own keeps it, and setup prints the line to add to that pre-commit hook: `sh .githooks/pre-commit`.
 
 ## How the workflow runs
 

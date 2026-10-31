@@ -3,7 +3,7 @@
  * fragments of the packs it enables. Every hook engine reads only the merged view.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -53,6 +53,14 @@ export async function loadConfig(projectDir, pluginRoot) {
   if (typeof project !== 'object' || project === null) {
     return { errors: [`${CONFIG_PATH}: expected \`export default defineConfig({ … })\`.`] }
   }
+  return mergeConfig(projectDir, pluginRoot, project)
+}
+
+/**
+ * [project], a config as its module exports it, merged over the packs it enables: `{ config }`
+ * or `{ errors }`, as `loadConfig` gives them. Setup merges the config it is about to write.
+ */
+export async function mergeConfig(projectDir, pluginRoot, project) {
   const errors = []
   const files = []
   const prompts = []
@@ -63,6 +71,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const mutation = []
   const verify = []
   const check = []
+  const lint = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -82,6 +91,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
     const build = stack.check === undefined ? fragment.check : validCommands(stack.check, `stacks.${pack}.check`, CHECK_EXAMPLE, errors)
+    const linted = stack.lint === undefined ? fragment.lint : validLint(stack.lint, `stacks.${pack}.lint`, errors)
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -104,6 +114,8 @@ export async function loadConfig(projectDir, pluginRoot) {
       }
       if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
       if (build?.length) check.push({ pack, root: trimRoot(root), run: build })
+      const hook = typeof linted === 'function' ? linted(readIn(join(projectDir, root))) : linted
+      if (hook?.length) lint.push({ pack, root: trimRoot(root), run: hook })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -140,7 +152,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   }
   const signOff = validSignOff(project.signOff, { mutation, verify }, errors)
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, signOff, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, lint, signOff, tracker, domain, contextErrors } }
 }
 
 /** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */
@@ -190,6 +202,30 @@ function validCommands(commands, label, example, errors) {
   if (Array.isArray(commands) && commands.length && commands.every((command) => isStrings(command))) return commands
   errors.push(`${label}: expected a list of commands, each a list of words, such as ${example}.`)
   return null
+}
+
+const LINT_EXAMPLE = "[['pnpm', 'exec', 'eslint', '{staged}']]"
+
+/** [commands] if they are a list of commands with `{staged}`, the staged files, only as a command's last word, else null with an error under [label]. */
+function validLint(commands, label, errors) {
+  const valid = Array.isArray(commands) && commands.length && commands.every((command) => isStrings(command) && !command.slice(0, -1).includes(STAGED))
+  if (valid) return commands
+  errors.push(`${label}: expected a list of commands, each a list of words, with ${STAGED} only as a command's last word, such as ${LINT_EXAMPLE}.`)
+  return null
+}
+
+/** The word in a lint command that stands for the root's staged files. */
+export const STAGED = '{staged}'
+
+/** A reader of the files under [dir]: a path relative to it maps to the file's text, or null when it can't be read. */
+function readIn(dir) {
+  return (path) => {
+    try {
+      return readFileSync(join(dir, path), 'utf8')
+    } catch {
+      return null
+    }
+  }
 }
 
 /** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */

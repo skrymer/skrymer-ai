@@ -21,11 +21,11 @@ Done when: the report is in front of the user.
 
 ## Otherwise
 
-1. **Plan.** Run `node <planner> plan` and show the whole output: the stacks found, any stacks entry to add to an existing config by hand, any file the planner cannot read, and the diff of each file. Ask the user to confirm it.
+1. **Plan.** Run `node <planner> plan` and show the whole output: the stacks found, any stacks entry to add to an existing config by hand, any other step by hand, any file the planner cannot read, anything it skipped, the git config it sets, and the diff of each file. Ask the user to confirm it.
    Done when: the user has approved the plan, or said what is wrong with it. A wrong or missing root is fixed in `.claude/skrymer-ai.config.mjs` after applying, because the planner proposes only what it detects. A file the planner cannot read stays unplanned until it can, and the user hears which.
 
-2. **Apply.** Run `node <planner> apply`. It names the files it wrote and the protected files it left.
-   Done when: it exits 0.
+2. **Apply.** Run `node <planner> apply`. It names the files it wrote, the protected files it left, and the git config it set. Setting `core.hooksPath` is part of the plan the user approved, so if `apply` could not set it, run the `git config` line it prints.
+   Done when: it exits 0, and `core.hooksPath` is set if the plan set it.
 
 3. **Write the settings.** If `apply` left `.claude/settings.json`, run `node <planner> plan --json` and write that file with the Write tool, using the `after` of its entry in `changes`, exactly as given.
    Done when: the write is made, or the user has declined it.
@@ -37,7 +37,8 @@ Done when: the report is in front of the user.
    - An edited `package.json` (Probity removed) needs the package manager's install, so the lockfile drops it too.
    - A code-intelligence plugin (`kotlin-lsp`, `typescript-lsp`) needs its language server on the `PATH`; its plugin page names the binary.
    - The packs' hooks and skills load in a new session.
-   - An entry the plan said to add by hand goes in the project config.
+   - An entry the plan said to add by hand goes in the project config, and a line under "By hand" goes where it names, such as the line that runs the skrymer-ai hook from a husky pre-commit hook.
+   - The pre-commit hook and the CI workflow are new files to commit.
 
 6. **Validate.** Run `node <planner> check`.
    Done when: it reports no drift, or the user has heard what each remaining line needs.
