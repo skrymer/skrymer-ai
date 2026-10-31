@@ -5,13 +5,19 @@
  * test command matches within one shell command. A prompt rule matches the words of a prompt,
  * whatever the roots. The formatter runs in the root, so the root's own Prettier and ESLint
  * configs apply; a project on another package manager or toolchain replaces it with its
- * stack's own `format`.
+ * stack's own `format`, and likewise `check`, the build and tests the sign-off runs in the root
+ * before it spawns any agent.
  */
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
 export default {
   detect: { files: ['nuxt.config.ts', 'nuxt.config.js', 'nuxt.config.mjs'] },
   lsp: ['typescript-lsp@claude-plugins-official'],
+  check: [
+    ['pnpm', 'lint'],
+    ['pnpm', 'typecheck'],
+    ['pnpm', 'test'],
+  ],
   tdd: {
     files: ['app/**/*.{ts,vue}', 'server/**/*.ts', 'shared/**/*.ts'],
     testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test\b/],

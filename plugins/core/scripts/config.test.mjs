@@ -610,3 +610,122 @@ test('a verify block with bad targets, commands, ready pattern, user or API is a
     ],
   })
 })
+
+test('the sign-off runs the gates a config selects in core’s order, whatever order the config lists them in', async () => {
+  // Given a config selecting three gates, listed against core's order
+  const project = fixtureProject(configOf(`{ signOff: { gates: ['check-adrs', 'code-review', 'simplify'] } }`))
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the sign-off holds exactly those gates, in core's order
+  assert.deepEqual(config.signOff.gates, ['simplify', 'code-review', 'check-adrs'])
+})
+
+test('with no signOff, every gate whose engine an enabled pack provides is selected', async () => {
+  // Given a config enabling nuxt, which brings a mutation engine and no verify engine, and no signOff
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'] } } }`), ['acme-web'])
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then every gate is selected except verify, which no enabled pack provides
+  assert.deepEqual(config.signOff.gates, ['simplify', 'mutation', 'code-review', 'check-adrs'])
+})
+
+test('an unknown sign-off gate is an error listing the gates there are', async () => {
+  // Given a config selecting a gate core has no such name for
+  const project = fixtureProject(configOf(`{ signOff: { gates: ['simplify', 'lint'] } }`))
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error names the gate and lists the valid ones
+  assert.deepEqual(result, {
+    errors: ['signOff.gates: there is no gate "lint". Gates: simplify, mutation, code-review, check-adrs, verify.'],
+  })
+})
+
+test('an engine gate no enabled pack provides is an error naming the fix', async () => {
+  // Given a config selecting verify while enabling only kotlin-spring, which brings no verify engine
+  const project = fixtureProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] } }, signOff: { gates: ['mutation', 'verify'] } }`), ['acme-api'])
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error says no enabled pack provides it, and how to fix that
+  assert.deepEqual(result, {
+    errors: ['signOff.gates: no enabled pack provides a verify engine. Enable a stack whose pack has one, or drop "verify" from the gates.'],
+  })
+})
+
+test('sign-off gates or docs that are not a list are an error, not a sign-off that runs nothing', async () => {
+  // Given a config whose signOff gates is a string and whose docs hold a number
+  const project = fixtureProject(configOf(`{ signOff: { gates: 'simplify', docs: [3] } }`))
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then both are errors saying the shape expected
+  assert.deepEqual(result, {
+    errors: [
+      "signOff.gates: expected a list of gates, such as ['simplify', 'code-review'].",
+      "signOff.docs: expected a list of globs, such as ['docs/**/*.md'].",
+    ],
+  })
+})
+
+test('a signOff field core does not know is an error listing the fields', async () => {
+  // Given a config with an order field, which a project cannot set
+  const project = fixtureProject(configOf(`{ signOff: { gates: ['simplify'], order: ['simplify'] } }`))
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error names the field and the ones there are
+  assert.deepEqual(result, { errors: ['signOff: there is no field "order". Fields: gates, docs.'] })
+})
+
+test('the sign-off docs a config lists are kept for the doc-drift greps, and default to none', async () => {
+  // Given one config listing docs and one with a signOff that lists none
+  const listed = fixtureProject(configOf(`{ signOff: { docs: ['docs/**/*.md', 'DESIGN.md'] } }`))
+  const unlisted = fixtureProject(configOf(`{ signOff: { gates: ['simplify'] } }`))
+
+  // When both are loaded
+  const [a, b] = await Promise.all([loadConfig(listed, PLUGIN_ROOT), loadConfig(unlisted, PLUGIN_ROOT)])
+
+  // Then the listed docs are kept, the unlisted are empty, and docs alone leave every available gate selected
+  assert.deepEqual(a.config.signOff, { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['docs/**/*.md', 'DESIGN.md'] })
+  assert.deepEqual(b.config.signOff, { gates: ['simplify'], docs: [] })
+})
+
+test('each stack root gets its pack’s check commands, unless the stack names its own', async () => {
+  // Given kotlin-spring at two roots with the pack's check, and nuxt with a check of its own
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api', './globex-api/'] }, nuxt: { roots: ['acme-web'], check: [['npm', 'run', 'verify']] } } }`),
+    ['acme-api', 'globex-api', 'acme-web']
+  )
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each root carries the commands its stack runs to build and test it
+  assert.deepEqual(config.check, [
+    { pack: 'kotlin-spring', root: 'acme-api', run: [['./gradlew', 'build']] },
+    { pack: 'kotlin-spring', root: 'globex-api', run: [['./gradlew', 'build']] },
+    { pack: 'nuxt', root: 'acme-web', run: [['npm', 'run', 'verify']] },
+  ])
+})
+
+test('a stack check that is not a list of commands is an error showing the shape', async () => {
+  // Given a nuxt stack whose check is one command rather than a list of them
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'], check: ['pnpm', 'test'] } } }`), ['acme-web'])
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error shows a list of commands, each a list of words
+  assert.deepEqual(result, {
+    errors: ["stacks.nuxt.check: expected a list of commands, each a list of words, such as [['pnpm', 'lint'], ['pnpm', 'test']]."],
+  })
+})
