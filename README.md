@@ -84,7 +84,7 @@ Before any agent is spawned, each stack the branch touched runs its pack's `chec
 stacks: { nuxt: { roots: ['web'], check: [['npm', 'run', 'lint'], ['npm', 'test']] } }
 ```
 
-Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
+Every judgement in the run (the mutant triager's verdict on each survivor, the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
 
 ## How the workflow runs
 
@@ -98,7 +98,8 @@ flowchart TD
   check -- fails --> stop(["STOP before any agent"])
   check --> simplify["simplify<br/>/simplify"]:::gate
   simplify --> mutation["mutation<br/>/core:mutation-test, per stack with an engine"]:::gate
-  mutation --> judging
+  mutation --> triager["mutant triager<br/>core:mutant-triager, a verdict per survivor"]
+  triager --> judging
   subgraph judging ["the judging message, on one commit"]
     review["code-review<br/>core:code-reviewer"]:::gate
     adrs["check-adrs<br/>core:check-adrs"]:::gate

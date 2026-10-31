@@ -179,7 +179,7 @@ test('every agent shipped in this repo is read-only, inherits the model and is n
   // Then core ships the sign-off's judging agents and none has a problem
   assert.deepEqual(
     files.map(({ path }) => path.split('/').at(-1)).sort(),
-    ['acceptance-ledger.md', 'adversary.md', 'blind-arbiter.md', 'check-adrs.md', 'code-reviewer.md', 'resolutions.md', 'retro-miner.md', 'verdict-auditor.md']
+    ['acceptance-ledger.md', 'adversary.md', 'blind-arbiter.md', 'check-adrs.md', 'code-reviewer.md', 'mutant-triager.md', 'resolutions.md', 'retro-miner.md', 'verdict-auditor.md']
   )
   assert.deepEqual(problems, [])
 })
