@@ -5,8 +5,10 @@
  * test command matches within one shell command. A prompt rule matches the words of a prompt,
  * whatever the roots. The formatter runs in the root, so the root's own Prettier and ESLint
  * configs apply; a project on another package manager or toolchain replaces it with its
- * stack's own `format`, and likewise `check`, the build and tests the sign-off runs in the root
- * before it spawns any agent.
+ * stack's own `format`, and likewise `check`, the build and tests the sign-off and CI run in the
+ * root, and `lint`, what the pre-commit hook runs when the root has staged files. `ci` gives the
+ * GitHub Actions steps a CI job takes in the root before its `check`: pnpm as the root's
+ * `packageManager` pins it, Node as its `.nvmrc` names it, and the install.
  */
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
@@ -18,6 +20,18 @@ export default {
     ['pnpm', 'typecheck'],
     ['pnpm', 'test'],
   ],
+  lint: (read) => (usesLintStaged(read) ? [['pnpm', 'exec', 'lint-staged']] : [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}'], ['pnpm', 'typecheck']]),
+  ci: (root, read) => {
+    const at = (file) => (root ? `${root}/${file}` : file)
+    const pinned = /^pnpm@/.test(json(read('package.json'))?.packageManager ?? '')
+    const node = read('.nvmrc') === null ? { 'node-version': 'lts/*' } : { 'node-version-file': at('.nvmrc') }
+    const lockfile = read('pnpm-lock.yaml') === null ? {} : { 'cache-dependency-path': at('pnpm-lock.yaml') }
+    return [
+      { uses: 'pnpm/action-setup@v4', with: pinned ? { package_json_file: at('package.json') } : { version: 10 } },
+      { uses: 'actions/setup-node@v4', with: { ...node, cache: 'pnpm', ...lockfile } },
+      { run: 'pnpm install --frozen-lockfile' },
+    ]
+  },
   tdd: {
     files: ['app/**/*.{ts,vue}', 'server/**/*.ts', 'shared/**/*.ts'],
     testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test\b/],
@@ -73,6 +87,23 @@ export default {
       },
     ],
   },
+}
+
+const LINT_STAGED_CONFIGS = ['.lintstagedrc', '.lintstagedrc.json', '.lintstagedrc.yaml', '.lintstagedrc.yml', '.lintstagedrc.mjs', '.lintstagedrc.cjs', '.lintstagedrc.js', 'lint-staged.config.js', 'lint-staged.config.mjs', 'lint-staged.config.cjs', 'lint-staged.config.ts']
+
+/** Whether the root [read] reads from configures lint-staged, in its package.json or a config file of its own. */
+function usesLintStaged(read) {
+  if (LINT_STAGED_CONFIGS.some((file) => read(file) !== null)) return true
+  return json(read('package.json'))?.['lint-staged'] !== undefined
+}
+
+/** [text] parsed as JSON, or null when there is none or it doesn't parse. */
+function json(text) {
+  try {
+    return text === null ? null : JSON.parse(text)
+  } catch {
+    return null
+  }
 }
 
 /** Stryker's statuses for a mutant no test detected; Timeout counts as a kill, CompileError as invalid. */
