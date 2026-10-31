@@ -70,6 +70,57 @@ A new test is refused while the branch holds duplicated source code it added, so
 
 `core` runs [jscpd](https://github.com/kucherenko/jscpd) through `npx` at a pinned version, with a config of its own, so a project's `.jscpd.json` doesn't change what the gate sees. Set `SKRYMER_AI_JSCPD` to use another command. The gate fails open: a scan that can't run lets the write through with "duplication-gate skipped: …" and the cause. On the first run the gate starts jscpd's download in the background and skips that one scan.
 
+### Sign-off
+
+`/core:feature-sign-off` runs once a change is functionally complete, before it is pushed. `signOff.gates` selects which gates run, and core runs them in its own order whatever order they are listed in: `simplify`, `mutation`, `code-review`, `check-adrs`, `verify`. `mutation` and `verify` need an engine: each runs once per stack root whose pack provides one (`kotlin-spring` and `nuxt` bring a mutation engine, `web-e2e` brings verify), and selecting one with no such pack is a config error. Without `signOff.gates`, every gate whose engine is available runs. The adversary, the acceptance ledger, the resolutions pass and the retro run in every sign-off and can't be deselected. `signOff.docs` lists globs of the project's other living docs, which the check-adrs gate greps for drift beside `CLAUDE.md`, `README.md`, `docs/` and the glossaries in scope:
+
+```js
+signOff: { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['handbook/**/*.md'] }
+```
+
+Before any agent is spawned, each stack the branch touched runs its pack's `check` commands in its root: the full build and tests (`kotlin-spring`: `./gradlew build`; `nuxt`: `pnpm lint`, `pnpm typecheck`, `pnpm test`). A failure stops the sign-off. A stack replaces its pack's commands with its own:
+
+```js
+stacks: { nuxt: { roots: ['web'], check: [['npm', 'run', 'lint'], ['npm', 'test']] } }
+```
+
+Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
+
+## How the workflow runs
+
+### The sign-off
+
+The selected gates (dashed) in core's order, the fixed core (bold) that every sign-off runs, the agent that judges each step, and the loops back: a fix after the resolutions pass re-runs it, and a fix on lines the mutation gate swept re-runs the sweep. `signOff.gates` and each pack's engines and `check` drive it.
+
+```mermaid
+flowchart TD
+  plan["sign-off.mjs<br/>the selected gates in core's order"] --> check["sign-off.mjs check<br/>each touched stack's check command"]
+  check -- fails --> stop(["STOP before any agent"])
+  check --> simplify["simplify<br/>/simplify"]:::gate
+  simplify --> mutation["mutation<br/>/core:mutation-test, per stack with an engine"]:::gate
+  mutation --> judging
+  subgraph judging ["the judging message, on one commit"]
+    review["code-review<br/>core:code-reviewer"]:::gate
+    adrs["check-adrs<br/>core:check-adrs"]:::gate
+    adversary["adversary<br/>core:adversary"]:::fixed
+    ledger["acceptance ledger<br/>core:acceptance-ledger"]:::fixed
+  end
+  judging -- "UNSOUND row, unanswerable attack, FAIL" --> user(["the user decides"])
+  judging -- "two agents split" --> arbiter["blind arbiter<br/>core:blind-arbiter"]
+  judging --> fixes["fix or justify"]
+  arbiter --> fixes
+  fixes -- "a fix on swept lines" --> mutation
+  fixes --> resolutions["resolutions pass<br/>core:resolutions"]:::fixed
+  resolutions -- "a row rejected" --> fixes
+  resolutions --> verify["verify<br/>the stack's verify skill, per stack with an engine"]:::gate
+  verify --> auditor["verdict auditor<br/>core:verdict-auditor"]
+  auditor -- "a fix after the resolutions pass" --> resolutions
+  auditor --> push["check again, commit, push"]
+  push --> retro["retro<br/>core:retro-miner"]:::fixed
+  classDef gate stroke-dasharray: 5 3
+  classDef fixed stroke-width: 3px
+```
+
 ## Developing
 
 `npm run check` runs the leak check and every hook test (`node --test`, no dependencies). The leak check fails the build when a term from `leak-denylist.txt` — a consuming project's name or domain — appears anywhere: everything here must be generic, and project specifics belong in the project's config.
@@ -79,3 +130,5 @@ A new test is refused while the branch holds duplicated source code it added, so
 ```sh
 sudo apparmor_parser -r scripts/evals/apparmor-profile
 ```
+
+A diagram is checked by rendering it, not by GitHub parsing it, with mermaid-cli at a pinned version. Extract the `mermaid` block to `block.mmd`, then run `npx -y @mermaid-js/mermaid-cli@11.17.0 -p pup.json -i block.mmd -o block.png`, where `pup.json` points Puppeteer at a local Chromium: `{"executablePath": "<path to chrome>", "args": ["--no-sandbox"]}`.
