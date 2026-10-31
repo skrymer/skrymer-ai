@@ -7,17 +7,18 @@ each sent brief against the rendered one by exact diff, so a brief is sent as pr
 all:
 
 ```
-node <scripts>/brief.mjs <agent> [--label <name>] [--commit <sha>] --slot <name>=<value> …
+node <scripts>/brief.mjs <agent> [--label <name>] [--commit <sha>] --slot <name>=<value> … --slot-file <name>=<file> …
 ```
 
 It prints the brief and saves it in the repo's git dir under `skrymer-ai/sign-off/briefs/`. A
-re-run of an agent takes a `--label` (`--label 2`), and so does its transcript check. `--commit`
+re-run of an agent takes a `--label` (`--label 2`), and so does its transcript check. Each blind
+arbiter takes one always, its pack row id, since each settles its own split. `--commit`
 defaults to HEAD, which is the commit the judging message points at once you've committed.
 
 The renderer fills from the branch: the repo, whether it is a worktree, the base, the commit, and
 the gate's diff, saved without lockfiles. Fill every other slot. A slot with nothing to say takes
-"none", and one left out stops the render. `@<file>` reads a value from a file, for output too
-long to quote, such as the scope script's.
+"none", and one left out stops the render. `--slot` takes its value literally; `--slot-file`
+reads one from a file, for output too long to quote, such as the scope script's.
 
 | Slot | What it holds |
 | --- | --- |

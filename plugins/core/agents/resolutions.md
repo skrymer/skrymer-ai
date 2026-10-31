@@ -22,9 +22,9 @@ cites as controls. Every dismissal in the pack is a claim to check, not a premis
 ## Reading a transcript
 
 Each agent's transcript comes to you as a transcript report, one file per agent: the type it ran
-as, the brief it was sent, and its hand-back, which is its report. Read those. The raw transcript
-is JSONL and can run to megabytes, so open it only to check something a report leaves out, and
-never whole.
+as, the raw transcript's path, the brief it was sent, each hand-back, which is its report, and one
+line per tool call it made. Read those. The raw transcript is JSONL and can run to megabytes, so
+open it only to check something a report leaves out, and never whole.
 
 Each brief has already been checked by script against the template rendered for its agent, and
 each agent against its definition, so a run that reaches you passed both. What a script can't
@@ -46,8 +46,10 @@ check is what the per-run slots say: that is yours.
    that the edit no longer does.
 4. **Is the pack faithful to the transcripts?** Look for findings softened, merged into another, or
    dropped on the way in, every finding including a "harmless" nit, and for a figure that is not
-   the saved output's own summary line. Check each sent brief's slot values: they describe and never
-   defend, name no instance of what to look for, and carry no other agent's conclusion. Check for
+   the saved output's own summary line. Check each agent's tool calls: a read-only agent that
+   wrote, edited or ran a mutating command broke its contract, and its report doesn't stand. Check
+   each sent brief's slot values: they describe and never defend, name no instance of what to look
+   for, and carry no other agent's conclusion. Check for
    absence: the adversary and the acceptance ledger have transcripts in every sign-off (a SKIPPED
    ledger is a transcript), and so does the blind arbiter wherever two agents split on one question.
 

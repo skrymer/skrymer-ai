@@ -61,7 +61,7 @@ test('a slot read from a file keeps every line, and a label saves a re-run’s b
   writeFileSync(join(dir, 'scope.txt'), 'docs in scope:\n  docs/adr/ (always)\n  CONTEXT.md (web/app/cart.ts)\n')
 
   // When check-adrs' brief is rendered for a second run, its scope read from the file
-  const { status, stdout, stderr } = runScript(SCRIPT, dir, ['check-adrs', '--label', '2', '--slot', 'what=The cart total starts at 1.', '--slot', 'scope=@scope.txt', '--slot', 'issue=none'])
+  const { status, stdout, stderr } = runScript(SCRIPT, dir, ['check-adrs', '--label', '2', '--slot', 'what=The cart total starts at 1.', '--slot-file', 'scope=scope.txt', '--slot', 'issue=none'])
 
   // Then the scope is there whole, and the brief is saved under its label
   assert.equal(status, 0, stderr)
@@ -76,7 +76,7 @@ test('a slot left unfilled, a slot the template lacks, and an agent with no temp
 
   // When the adversary is rendered without its slots, then with a slot it lacks, then a template that doesn't exist
   const missing = runScript(SCRIPT, dir, ['adversary', '--slot', 'what=The cart total starts at 1.'])
-  const extra = runScript(SCRIPT, dir, ['blind-arbiter', '--slot', 'question=q', '--slot', 'position1=a', '--slot', 'position2=b', '--slot', 'what=x'])
+  const extra = runScript(SCRIPT, dir, ['blind-arbiter', '--label', 'CR-1', '--slot', 'question=q', '--slot', 'position1=a', '--slot', 'position2=b', '--slot', 'what=x'])
   const unknown = runScript(SCRIPT, dir, ['devils-advocate'])
 
   // Then each names the problem, and no brief is saved
@@ -85,4 +85,44 @@ test('a slot left unfilled, a slot the template lacks, and an agent with no temp
   assert.equal(unknown.status, 1)
   assert.match(unknown.stdout, /^STOP: there is no brief template for "devils-advocate"\. Templates: acceptance-ledger, adversary, blind-arbiter, check-adrs, code-reviewer, resolutions, retro-miner, verdict-auditor\.\n$/)
   assert.equal(existsSync(signOffDir(dir, 'briefs')), false)
+})
+
+test('the saved diff is a unified patch that applies, whatever external diff tool the user configured', () => {
+  // Given a committed change whose last context line is only whitespace, and an external diff tool set
+  const dir = gitProject({ 'web/app/cart.ts': 'export const total = 0\n  \n' }, { 'web/app/cart.ts': 'export const total = 1\n  \n' })
+  git(dir, 'commit', '-qam', 'Change the total')
+  const slots = ['--slot', 'what=The cart total starts at 1.', '--slot', 'issue=none', '--slot', 'parent=none', '--slot', 'files=web/app/cart.ts']
+
+  // When the adversary's brief is rendered
+  const { status, stderr } = runScript(SCRIPT, dir, ['adversary', ...slots], { GIT_EXTERNAL_DIFF: 'echo' })
+
+  // Then the saved diff is git's own patch, whole, and reverses cleanly on the branch
+  assert.equal(status, 0, stderr)
+  const diff = signOffDir(realpathSync(dir), 'diff-adversary.patch')
+  assert.match(readFileSync(diff, 'utf8'), /^\+export const total = 1$/m)
+  git(dir, 'apply', '--check', '--reverse', diff)
+})
+
+test('--slot takes its value literally, and --slot-file reads one from a file', () => {
+  // Given a committed change and a file holding the change's description
+  const dir = project()
+  writeFileSync(join(dir, 'what.txt'), 'The cart total starts at 1.\n')
+
+  // When the adversary is rendered with a value that starts with @ and another read from the file
+  const { status, stdout, stderr } = runScript(SCRIPT, dir, ['adversary', '--slot-file', 'what=what.txt', '--slot', 'issue=@acme/cart#12', '--slot', 'parent=none', '--slot', 'files=web/app/cart.ts'])
+
+  // Then the @ value stands as typed and the file's text fills its slot
+  assert.equal(status, 0, stderr)
+  assert.match(stdout, /\nWhat it does: The cart total starts at 1\.\nThe issue it claims to deliver: @acme\/cart#12\n/)
+})
+
+test('a blind arbiter’s brief needs a label, so one split’s brief never overwrites another’s', () => {
+  // Given a committed change
+  const dir = project()
+
+  // When a blind arbiter is rendered without a label
+  const { status, stdout } = runScript(SCRIPT, dir, ['blind-arbiter', '--slot', 'question=q', '--slot', 'position1=a', '--slot', 'position2=b'])
+
+  // Then it stops, asking for the split's label
+  assert.deepEqual([status, stdout], [1, 'STOP: each blind arbiter settles one split, so its brief takes a --label naming it (the pack row id).\n'])
 })
