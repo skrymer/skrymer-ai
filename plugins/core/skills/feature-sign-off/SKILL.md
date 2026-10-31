@@ -56,8 +56,8 @@ Run only the selected ones, in this order. Act on what each surfaces before star
    claim goes false. Re-run the touched tests, then commit.
 
 2. **mutation: do the tests catch bugs?** Run `/core:mutation-test`, which sweeps each stack the
-   plan names, scoped to what the branch changed as of simplify's commit, and triages every survivor
-   (with its own triager agent when there are several). It runs here because the code is final
+   plan names, scoped to what the branch changed as of simplify's commit, and hands every survivor
+   to a fresh mutant triager (`core:mutant-triager`) for its verdict. It runs here because the code is final
    after simplify, and because the tests it adds are reviewed next. Commit the new tests after
    `sign-off.mjs check` passes.
 
