@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,7 +54,7 @@ test('the report prints the agent type, the brief it was sent and its hand-back,
 
   // Then the type, the brief and the hand-back are printed, and the closing text line is not
   assert.equal(status, 0)
-  assert.equal(stdout, `agent: core:adversary\n--- brief\n${BRIEF}--- hand-back\n${REPORT}\n`)
+  assert.equal(stdout, `agent: core:adversary\ntranscript: ${path}\n--- brief\n${BRIEF}--- hand-back\n${REPORT}\n--- tool calls\nBash: git diff\nSubagentHandback\n`)
 })
 
 test('check passes an agent launched as its definition with the brief rendered for it', () => {
@@ -101,4 +101,56 @@ test('check rejects a missing transcript, a fork, a general-purpose agent, and o
       [1, `REJECTED: ${silent}: it never handed back through SubagentHandback, so there is no report to judge.\n`],
     ]
   )
+})
+
+test('check passes a brief sent without the rendered brief’s final newline, which the Bash tool strips', () => {
+  // Given a transcript whose brief is the rendered one less its trailing newline, as the conductor saw it
+  const path = transcript({ brief: BRIEF.replace(/\n$/, '') })
+
+  // When it is checked as the adversary
+  const result = runScript(SCRIPT, project(), ['check', path, 'adversary'])
+
+  // Then it passes, since only the invisible final newline differs
+  assert.deepEqual([result.status, result.stdout], [0, `ok: ${path} ran as core:adversary with its rendered brief.\n`])
+})
+
+test('check finds the rendered brief when the project sits below its repo’s top', () => {
+  // Given a repo whose project lives in app/, the brief saved in the repo's git dir
+  const repo = project()
+  const app = join(repo, 'app')
+  mkdirSync(app)
+  const path = transcript()
+
+  // When the check runs from the project
+  const result = runScript(SCRIPT, app, ['check', path, 'adversary'])
+
+  // Then it finds the brief the renderer saved at the repo top's git dir
+  assert.deepEqual([result.status, result.stdout], [0, `ok: ${path} ran as core:adversary with its rendered brief.\n`])
+})
+
+test('the report keeps every hand-back of an agent continued with a follow-up', () => {
+  // Given a transcript with a second hand-back after a follow-up message
+  const path = transcript()
+  writeFileSync(path, readFileSync(path, 'utf8') + line({ type: 'user', message: { role: 'user', content: 'Test the null id too.' } }) + line({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't3', name: 'SubagentHandback', input: { message: '4. Null ids: refused.' } }] } }))
+
+  // When it is reported
+  const { status, stdout } = runScript(SCRIPT, project(), [path])
+
+  // Then both hand-backs are printed, in order
+  assert.equal(status, 0)
+  assert.match(stdout, new RegExp(`\n--- hand-back\n${REPORT}\n--- hand-back\n4\\. Null ids: refused\.\n--- tool calls\n`))
+})
+
+test('the report names the raw transcript and lists every tool call, so a read-only breach shows', () => {
+  // Given a transcript whose agent ran git diff and then edited a file
+  const path = transcript()
+  writeFileSync(path, readFileSync(path, 'utf8') + line({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't4', name: 'Edit', input: { file_path: '/work/acme/web/app/cart.ts', old_string: '0', new_string: '1' } }] } }))
+
+  // When it is reported
+  const { status, stdout } = runScript(SCRIPT, project(), [path])
+
+  // Then the raw transcript's path and each call, the edit among them, are printed
+  assert.equal(status, 0)
+  assert.match(stdout, new RegExp(`^agent: core:adversary\\ntranscript: ${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`))
+  assert.match(stdout, /\n--- tool calls\nBash: git diff\nSubagentHandback\nEdit: \/work\/acme\/web\/app\/cart\.ts\n/)
 })

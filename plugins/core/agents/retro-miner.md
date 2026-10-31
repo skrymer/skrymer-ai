@@ -15,8 +15,8 @@ agent the run spawned, the resolutions pack, and the memory index, if the projec
 committed is `git log --stat <base>..HEAD` and `git diff <base>..HEAD`. Read anything else you want,
 including the project's skills, hooks, ADRs and glossaries.
 
-A transcript report holds the type an agent ran as, the brief it was sent and its hand-back, which
-is its report. Read those. Open the raw JSONL only to check something a report leaves out, and never
+A transcript report holds the type an agent ran as, the raw transcript's path, the brief it was
+sent, each hand-back, which is its report, and one line per tool call. Read those. Open the raw JSONL only to check something a report leaves out, and never
 whole.
 
 ## Look for

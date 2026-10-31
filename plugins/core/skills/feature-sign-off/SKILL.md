@@ -102,7 +102,7 @@ Run only the selected ones, in this order. Act on what each surfaces before star
    transcript, a fork, an agent not launched as its core definition, one that never handed back,
    and a brief that differs from the one rendered for it, showing the diff. Re-run each rejected
    agent, rendered and launched as its definition, and act on what it returns before going on.
-   Then save each agent's report (`transcript.mjs <transcript> > <scratch>/report-<agent>.txt`)
+   Then save each agent's report (`transcript.mjs <transcript> > <scratch>/report-<agent>[-<label>].txt`)
    and spawn the **resolutions** agent (`core:resolutions`) with the pack, the commit as it
    ships, every report, and the saved output of every run the pack cites.
    It judges each fix and each dismissal against the transcripts, checks the pack is faithful, and
@@ -132,7 +132,7 @@ The fan-out buys a fresh context, not an independent position, unless the brief 
 - **Name the kind, never the instance.** A brief's angle names the kind of thing to look for. An
   example from the change comes back as the agent's first finding.
 - **Splits are settled blind.** When two agents reach opposing conclusions on one question, spawn
-  the **blind arbiter** (`core:blind-arbiter`) with the question and both positions, each quoted
+  the **blind arbiter** (`core:blind-arbiter`, rendered with `--label <row id>`) with the question and both positions, each quoted
   from its transcript, unattributed, and no diff. Test any harm its "strongest case against"
   names before its pick lands. An override of its pick is its own pack row. A split that one
   reproducible run decides (does this rule refuse that line, does this test go red) is settled by
