@@ -729,3 +729,50 @@ test('a stack check that is not a list of commands is an error showing the shape
     errors: ["stacks.nuxt.check: expected a list of commands, each a list of words, such as [['pnpm', 'lint'], ['pnpm', 'test']]."],
   })
 })
+
+test('each stack root gets its pack’s lint commands, unless the stack names its own', async () => {
+  // Given kotlin-spring at a root with the pack's lint, and nuxt with a lint of its own
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] }, nuxt: { roots: ['acme-web'], lint: [['npx', 'biome', 'check', '{staged}']] } } }`),
+    ['acme-api', 'acme-web']
+  )
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each root carries the commands its pre-commit hook runs
+  assert.deepEqual(config.lint, [
+    { pack: 'kotlin-spring', root: 'acme-api', run: [['./gradlew', 'detekt']] },
+    { pack: 'nuxt', root: 'acme-web', run: [['npx', 'biome', 'check', '{staged}']] },
+  ])
+})
+
+test('a nuxt root lints its staged files with ESLint and typechecks, unless it has lint-staged', async () => {
+  // Given one nuxt root without lint-staged and one whose package.json configures it
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web', 'globex-web'] } } }`), ['acme-web', 'globex-web'])
+  writeFileSync(join(project, 'globex-web', 'package.json'), JSON.stringify({ 'lint-staged': { '*.ts': 'eslint --fix' } }))
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the first runs ESLint on its staged files and the typecheck, and the second runs its lint-staged
+  assert.deepEqual(config.lint, [
+    { pack: 'nuxt', root: 'acme-web', run: [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}'], ['pnpm', 'typecheck']] },
+    { pack: 'nuxt', root: 'globex-web', run: [['pnpm', 'exec', 'lint-staged']] },
+  ])
+})
+
+test('a stack lint with {staged} anywhere but its last word is an error showing the shape', async () => {
+  // Given a nuxt stack whose lint puts the staged files before a flag
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'], lint: [['eslint', '{staged}', '--fix']] } } }`), ['acme-web'])
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error says where {staged} goes
+  assert.deepEqual(result, {
+    errors: [
+      "stacks.nuxt.lint: expected a list of commands, each a list of words, with {staged} only as a command's last word, such as [['pnpm', 'exec', 'eslint', '{staged}']].",
+    ],
+  })
+})

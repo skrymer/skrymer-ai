@@ -1,10 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { GIT_ENV, git, runScript } from './git-fixture.mjs'
 
 const SETUP = join(dirname(fileURLToPath(import.meta.url)), 'setup.mjs')
 
@@ -85,7 +86,7 @@ test('applying the plan writes all but the settings, which Claude Code protects,
   assert.equal(applied.status, 0, applied.stderr)
   assert.equal(
     applied.stdout,
-    'Wrote .claude/skrymer-ai.config.mjs, CLAUDE.md, CONTEXT.md, docs/adr/.gitkeep.\n' +
+    'Wrote .claude/skrymer-ai.config.mjs, CLAUDE.md, CONTEXT.md, docs/adr/.gitkeep, .githooks/pre-commit, .github/workflows/skrymer-ai.yml.\n' +
       'Left .claude/settings.json: Claude Code protects it, so write it with the Write tool and the content `plan --json` gives.\n'
   )
   assert.deepEqual(planOf(repo).changes.map((change) => change.path), ['.claude/settings.json'])
@@ -340,7 +341,7 @@ test('a file setup cannot read, such as settings a sandbox hides, is reported wh
   assert.deepEqual(plan.unreadable, [{ path: '.claude/settings.json', code: 'EACCES' }])
   assert.deepEqual(
     plan.changes.map((change) => change.path),
-    ['.claude/skrymer-ai.config.mjs', 'CLAUDE.md', 'CONTEXT.md', 'docs/adr/.gitkeep']
+    ['.claude/skrymer-ai.config.mjs', 'CLAUDE.md', 'CONTEXT.md', 'docs/adr/.gitkeep', '.githooks/pre-commit', '.github/workflows/skrymer-ai.yml']
   )
 })
 
@@ -419,4 +420,258 @@ test('dependencies inside the ranges a pack targets are no drift', () => {
 
   // Then it reports no drift
   assert.deepEqual(result, { status: 0, stdout: 'skrymer-ai: no drift.\n', stderr: '' })
+})
+
+const HOOK = '.githooks/pre-commit'
+const WORKFLOW = '.github/workflows/skrymer-ai.yml'
+
+/** A temp repo holding [files] in a fresh git repo, with git kept off the developer's own config. */
+function gitRepo(files) {
+  const repo = fixtureRepo(files)
+  git(repo, 'init', '-q', '-b', 'main')
+  return repo
+}
+
+/** Runs the planner in a git [repo] with [args], with git kept off the developer's own config. */
+const runInGit = (repo, ...args) => runScript(SETUP, repo, args)
+
+/** Adopts the plan in a git [repo] as the skill does. */
+function adoptInGit(repo) {
+  const { stdout } = runInGit(repo, 'plan', '--json')
+  const settings = changeTo(JSON.parse(stdout), '.claude/settings.json')
+  runInGit(repo, 'apply')
+  if (settings) writeFileSync(join(repo, '.claude', 'settings.json'), settings.after)
+}
+
+test('a Spring Boot repo gets a pre-commit hook that runs the root’s lint only when it has staged files', () => {
+  // Given a Spring Boot build at api/
+  const repo = fixtureRepo({ 'api/build.gradle.kts': SPRING_BUILD })
+
+  // When the planner plans
+  const hook = changeTo(planOf(repo), HOOK)
+
+  // Then it creates the hook, whose generated block runs detekt in api when api has staged files
+  assert.equal(hook.action, 'create')
+  assert.equal(
+    hook.after,
+    `#!/bin/sh
+# The skrymer-ai pre-commit hook: each stack root with staged files runs its lint.
+# /core:setup rewrites the lines between the skrymer-ai markers; edits outside them are kept.
+# skrymer-ai:start
+if ! git diff --cached --quiet --diff-filter=ACMR -- api; then
+  echo 'skrymer-ai: kotlin-spring lint in api'
+  (cd api && ./gradlew detekt) || exit 1
+fi
+# skrymer-ai:end
+`
+  )
+})
+
+test('a Spring Boot repo gets a CI workflow with a job that sets up the JDK and Gradle and runs the check', () => {
+  // Given a Spring Boot build at api/ whose toolchain is Java 17
+  const repo = fixtureRepo({ 'api/build.gradle.kts': `${SPRING_BUILD}\nkotlin { jvmToolchain(17) }\n` })
+
+  // When the planner plans
+  const workflow = changeTo(planOf(repo), WORKFLOW)
+
+  // Then it creates the workflow, with one job in api running the pack's setup steps and its check
+  assert.equal(workflow.action, 'create')
+  assert.equal(
+    workflow.after,
+    `# The skrymer-ai checks: one job per stack root, running its check.
+# /core:setup rewrites the jobs between the skrymer-ai markers; edits outside them are kept.
+name: skrymer-ai
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # skrymer-ai:start
+  kotlin-spring-api:
+    name: kotlin-spring check in api
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build
+  # skrymer-ai:end
+`
+  )
+})
+
+test('a nuxt root’s job sets up pnpm and Node from the root’s own files, and a stack’s check replaces the pack’s', () => {
+  // Given a nuxt root at web/ with a pinned pnpm, an .nvmrc and a lockfile, and a check of its own
+  const config = "import { defineConfig } from 'skrymer-ai'\n\nexport default defineConfig({ stacks: { nuxt: { roots: ['web'], check: [['pnpm', 'run', 'ci:acme']] } } })\n"
+  const repo = fixtureRepo({
+    'web/nuxt.config.ts': 'export default defineNuxtConfig({})\n',
+    'web/package.json': JSON.stringify({ name: 'acme-web', packageManager: 'pnpm@10.4.1' }),
+    'web/.nvmrc': '24\n',
+    'web/pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+    '.claude/skrymer-ai.config.mjs': config,
+  })
+
+  // When the planner plans
+  const workflow = changeTo(planOf(repo), WORKFLOW).after
+
+  // Then the job reads pnpm and Node from web/, installs, and runs the stack's own check
+  assert.match(
+    workflow,
+    /\n {2}nuxt-web:\n[^]*\n {6}- uses: pnpm\/action-setup@v4\n {8}with:\n {10}package_json_file: web\/package\.json\n {6}- uses: actions\/setup-node@v4\n {8}with:\n {10}node-version-file: web\/\.nvmrc\n {10}cache: pnpm\n {10}cache-dependency-path: web\/pnpm-lock\.yaml\n {6}- run: pnpm install --frozen-lockfile\n {6}- run: pnpm run ci:acme\n {2}# skrymer-ai:end\n$/
+  )
+})
+
+test('the workflow is skipped with a message when the tracker is not GitHub', () => {
+  // Given a Spring Boot repo whose config keeps its issues locally
+  const config = "import { defineConfig } from 'skrymer-ai'\n\nexport default defineConfig({ stacks: { 'kotlin-spring': { roots: ['.'] } }, tracker: { kind: 'local' } })\n"
+  const repo = fixtureRepo({ 'build.gradle.kts': SPRING_BUILD, '.claude/skrymer-ai.config.mjs': config })
+
+  // When the planner plans, and prints the plan for a person
+  const plan = planOf(repo)
+  const { stdout } = runSetup(repo, 'plan')
+
+  // Then no workflow is planned, and the skip is said in words
+  assert.equal(changeTo(plan, WORKFLOW), undefined)
+  const skip = `${WORKFLOW}: the workflow is GitHub Actions only, and tracker.kind is "local".`
+  assert.deepEqual(plan.skipped, [skip])
+  assert.match(stdout, new RegExp(`\nSkipped:\n- ${skip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\n`))
+})
+
+test('the hook runs each staged root’s lint on its staged files, and nothing for a root with none staged', () => {
+  // Given two nuxt roots whose lint records the files it is given, adopted in a git repo
+  const config = "import { defineConfig } from 'skrymer-ai'\n\nexport default defineConfig({ stacks: { nuxt: { roots: ['acme-web', 'globex-web'], lint: [['node', '../record.mjs', '{staged}']] } } })\n"
+  const repo = gitRepo({
+    'acme-web/nuxt.config.ts': 'export default defineNuxtConfig({})\n',
+    'globex-web/nuxt.config.ts': 'export default defineNuxtConfig({})\n',
+    'record.mjs': "import { appendFileSync } from 'node:fs'\nimport { basename } from 'node:path'\nappendFileSync('../lint.log', JSON.stringify([basename(process.cwd()), ...process.argv.slice(2)]) + '\\n')\n",
+    '.claude/skrymer-ai.config.mjs': config,
+  })
+  adoptInGit(repo)
+  git(repo, 'add', '-A')
+  git(repo, 'commit', '-qm', 'adopt', '--no-verify')
+
+  // When a commit stages two files in acme-web, one with a space in its name, and none in globex-web
+  writeFileSync(join(repo, 'acme-web', 'cart.ts'), 'export const cart = []\n')
+  mkdirSync(join(repo, 'acme-web', 'docs'))
+  writeFileSync(join(repo, 'acme-web', 'docs', 'release notes.md'), '# Notes\n')
+  git(repo, 'add', '-A')
+  git(repo, 'commit', '-qm', 'cart')
+
+  // Then the lint ran once, in acme-web, on its staged files relative to the root
+  assert.equal(readFileSync(join(repo, 'lint.log'), 'utf8'), `${JSON.stringify(['acme-web', 'cart.ts', 'docs/release notes.md'])}\n`)
+})
+
+test('a lint that fails stops the commit', () => {
+  // Given a Spring Boot root whose lint fails, adopted in a git repo
+  const config = "import { defineConfig } from 'skrymer-ai'\n\nexport default defineConfig({ stacks: { 'kotlin-spring': { roots: ['api'], lint: [['node', '-e', 'process.exit(3)']] } } })\n"
+  const repo = gitRepo({ 'api/build.gradle.kts': SPRING_BUILD, '.claude/skrymer-ai.config.mjs': config })
+  adoptInGit(repo)
+
+  // When a commit stages a file in api
+  git(repo, 'add', '-A')
+  const commit = spawnSync('git', ['-c', 'user.email=dev@acme.test', '-c', 'user.name=dev', 'commit', '-qm', 'api'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GIT_ENV } })
+
+  // Then the commit fails and nothing is committed
+  assert.notEqual(commit.status, 0)
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '-q', 'HEAD'], { cwd: repo, env: { ...process.env, ...GIT_ENV } }).status, 1)
+})
+
+test('setup plans core.hooksPath and apply sets it, so the hook runs in this clone', () => {
+  // Given a Spring Boot repo in git with no hooks path set
+  const repo = gitRepo({ 'api/build.gradle.kts': SPRING_BUILD })
+
+  // When it is planned, then applied
+  const plan = JSON.parse(runInGit(repo, 'plan', '--json').stdout)
+  const plain = runInGit(repo, 'plan').stdout
+  const applied = runInGit(repo, 'apply')
+
+  // Then the plan sets the hooks path, says so in words, and apply sets it
+  assert.deepEqual(plan.git, [{ key: 'core.hooksPath', before: null, after: '.githooks' }])
+  assert.match(plain, /\nGit config:\n- core\.hooksPath: unset → \.githooks\n/)
+  assert.match(applied.stdout, /\nSet core\.hooksPath to \.githooks\.\n/)
+  assert.equal(git(repo, 'config', '--local', 'core.hooksPath'), '.githooks')
+  assert.equal(statSync(join(repo, HOOK)).mode & 0o111, 0o111)
+})
+
+test('check reports a drifted generated block and an unset hooks path, and a re-run keeps edits outside the markers', () => {
+  // Given an adopted repo whose hook gained a line of its own, lost a generated line, and whose hooks path was unset
+  const repo = gitRepo({ 'api/build.gradle.kts': SPRING_BUILD })
+  adoptInGit(repo)
+  const generated = readFileSync(join(repo, HOOK), 'utf8')
+  writeFileSync(join(repo, HOOK), `${generated.replace(/^ {2}echo .*\n/m, '')}npm run acme-secrets-scan\n`)
+  git(repo, 'config', '--local', '--unset', 'core.hooksPath')
+
+  // When it is checked, then set up again
+  const checked = runInGit(repo, 'check')
+  runInGit(repo, 'apply')
+
+  // Then both drifts are reported, and the re-run restores the block and the path and keeps the project's line
+  assert.equal(checked.status, 1)
+  assert.deepEqual(checked.stdout.trimEnd().split('\n').slice(1), [
+    `- ${HOOK}: setup would update it.`,
+    '- core.hooksPath: setup would set it to .githooks; it is unset.',
+  ])
+  assert.equal(readFileSync(join(repo, HOOK), 'utf8'), `${generated}npm run acme-secrets-scan\n`)
+  assert.equal(git(repo, 'config', '--local', 'core.hooksPath'), '.githooks')
+  assert.equal(runInGit(repo, 'check').status, 0)
+})
+
+test('a repo on husky keeps its hooks path, and setup prints the line to add to its pre-commit hook', () => {
+  // Given a Spring Boot repo whose husky pre-commit runs lint-staged, with husky's hooks path set
+  const repo = gitRepo({ 'api/build.gradle.kts': SPRING_BUILD, '.husky/pre-commit': 'npx lint-staged\n' })
+  git(repo, 'config', '--local', 'core.hooksPath', '.husky/_')
+
+  // When it is planned, adopted and checked, then checked again once the line is added
+  const plan = JSON.parse(runInGit(repo, 'plan', '--json').stdout)
+  adoptInGit(repo)
+  const before = runInGit(repo, 'check')
+  writeFileSync(join(repo, '.husky', 'pre-commit'), 'npx lint-staged\nsh .githooks/pre-commit\n')
+  const after = runInGit(repo, 'check')
+
+  // Then the hooks path and husky's hook are left, the line is printed, and check reports it until it is there
+  assert.deepEqual(plan.git, [])
+  assert.deepEqual(plan.hand, [{ path: '.husky/pre-commit', todo: 'add the line that runs the skrymer-ai hook: sh .githooks/pre-commit' }])
+  assert.equal(changeTo(plan, '.husky/pre-commit'), undefined)
+  assert.equal(git(repo, 'config', '--local', 'core.hooksPath'), '.husky/_')
+  assert.deepEqual(before.stdout.trimEnd().split('\n').slice(1), ['- .husky/pre-commit: add the line that runs the skrymer-ai hook: sh .githooks/pre-commit'])
+  assert.deepEqual(after, { status: 0, stdout: 'skrymer-ai: no drift.\n', stderr: '', out: 'skrymer-ai: no drift.\n' })
+})
+
+test('a repo with its own hooks path keeps it, and setup prints the line to add to that path’s pre-commit hook', () => {
+  // Given a Spring Boot repo whose hooks live in tools/hooks
+  const repo = gitRepo({ 'api/build.gradle.kts': SPRING_BUILD })
+  git(repo, 'config', '--local', 'core.hooksPath', 'tools/hooks')
+
+  // When it is planned
+  const plan = JSON.parse(runInGit(repo, 'plan', '--json').stdout)
+
+  // Then the hooks path is left and the line names that path's hook
+  assert.deepEqual(plan.git, [])
+  assert.deepEqual(plan.hand, [{ path: 'tools/hooks/pre-commit', todo: 'add the line that runs the skrymer-ai hook: sh .githooks/pre-commit' }])
+})
+
+test('a workflow of the project’s own at the same path, without markers, is left and named as a step by hand', () => {
+  // Given a Spring Boot repo whose skrymer-ai workflow was written by hand, without markers
+  const theirs = 'name: skrymer-ai\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./gradlew build\n'
+  const repo = fixtureRepo({ 'build.gradle.kts': SPRING_BUILD, [WORKFLOW]: theirs })
+
+  // When the planner plans
+  const plan = planOf(repo)
+
+  // Then the workflow is not changed, and the step by hand says how to let setup own its jobs
+  assert.equal(changeTo(plan, WORKFLOW), undefined)
+  assert.deepEqual(plan.hand, [
+    {
+      path: WORKFLOW,
+      todo: 'put the skrymer-ai jobs between "# skrymer-ai:start" and "# skrymer-ai:end" lines under jobs:, or delete the file, then run setup again.',
+    },
+  ])
 })

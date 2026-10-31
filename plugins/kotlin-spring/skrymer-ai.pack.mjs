@@ -3,13 +3,21 @@
  * stack root the project config names, so a project states only its roots. `/core:setup`
  * proposes a root wherever `detect` finds a Gradle build applying Spring Boot, and enables the
  * `lsp` plugins. A test command matches within one shell command. A prompt rule matches the
- * words of a prompt, whatever the roots. `check` is the build and tests the sign-off runs in
- * the root before it spawns any agent; a stack's own `check` replaces it.
+ * words of a prompt, whatever the roots. `check` is the build and tests the sign-off and CI run
+ * in the root, and `lint` the fast check the pre-commit hook runs when the root has staged
+ * files; a stack's own `check` or `lint` replaces the pack's. `ci` gives the GitHub Actions
+ * steps a CI job takes in the root before its `check`: the JDK the build's toolchain names, else
+ * 21, and Gradle with its cache.
  */
 export default {
   detect: { files: ['build.gradle.kts', 'build.gradle'], contains: /org\.springframework\.boot/ },
   lsp: ['kotlin-lsp@claude-plugins-official'],
   check: [['./gradlew', 'build']],
+  lint: [['./gradlew', 'detekt']],
+  ci: (root, read) => [
+    { uses: 'actions/setup-java@v4', with: { distribution: 'temurin', 'java-version': javaVersion(read) } },
+    { uses: 'gradle/actions/setup-gradle@v4' },
+  ],
   tdd: {
     files: ['src/**/*.kt'],
     testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],
@@ -57,6 +65,12 @@ export default {
       },
     ],
   },
+}
+
+/** The Java version a root's Gradle build gives its toolchain, as text, else '21'. */
+function javaVersion(read) {
+  const build = read('build.gradle.kts') ?? read('build.gradle') ?? ''
+  return /jvmToolchain\(\s*(\d+)|JavaLanguageVersion\.of\(\s*(\d+)|JavaVersion\.VERSION_(\d+)/.exec(build)?.slice(1).find(Boolean) ?? '21'
 }
 
 /**
