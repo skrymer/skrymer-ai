@@ -84,7 +84,7 @@ Before any agent is spawned, each stack the branch touched runs its pack's `chec
 stacks: { nuxt: { roots: ['web'], check: [['npm', 'run', 'lint'], ['npm', 'test']] } }
 ```
 
-Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
+Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)). Scripts do the bookkeeping around them ([ADR 0014](docs/adr/0014-scripts-do-the-sign-offs-bookkeeping-and-agents-its-judging.md)): `brief.mjs` renders each agent's brief from its template in `plugins/core/skills/feature-sign-off/briefs/`, and before the resolutions pass reads the pack, `transcript.mjs check` rejects a judging agent with no transcript, one launched as a fork or as general-purpose rather than as its definition, one that never handed back, and a brief that differs from the rendered one.
 
 ## How the workflow runs
 

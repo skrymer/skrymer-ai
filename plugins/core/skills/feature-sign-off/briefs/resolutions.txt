@@ -1,0 +1,5 @@
+{opening}
+The resolutions pack: {pack}
+Transcript reports: {transcripts}
+Saved runs the pack cites: {runs}
+Scratch copy: {scratch}
