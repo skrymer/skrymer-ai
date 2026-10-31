@@ -117,5 +117,5 @@ ones you are unsure of UNSURE.
 
 ## Related
 
-`core:tdd` (writing the missing test) · `feature-sign-off` (runs this as its mutation gate) ·
+`core:tdd` (writing the missing test) · `core:feature-sign-off` (runs this as its mutation gate) ·
 each pack's playbook and engine notes.

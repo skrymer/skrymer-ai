@@ -78,3 +78,7 @@ siblings explicitly, apply the one mutation, and run `vitest --config` against i
 the copy. A mutant that throws inside a Vue event handler, watcher or render is swallowed by Vue.
 Hook `useNuxtApp().hook('vue:error', …)` and assert nothing arrived, or a green run proves
 nothing.
+
+A copy of the whole root in a scratch directory, such as the one a sign-off's resolutions pass
+is allowed, runs Vitest only with `node_modules` hard-linked (`cp -al`) and `nuxt prepare` run
+in the copy. A symlinked `node_modules` can't resolve modules there.
