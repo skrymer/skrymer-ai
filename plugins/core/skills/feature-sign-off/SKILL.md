@@ -28,7 +28,8 @@ and send its output exactly as printed, never retyped or added to
 
 Scripts do the bookkeeping, from the project root, where `<scripts>` is `<base>/../../scripts`
 and `<base>` is this skill's base directory: `sign-off.mjs` (the plan and the check),
-`brief.mjs` (each brief) and `transcript.mjs` (what each agent was sent and returned). Never
+`brief.mjs` (each brief), `transcript.mjs` (what each agent was sent and returned),
+`red-proof.mjs` (the red that pins a fix) and `pack-lint.mjs` (the pack's bookkeeping). Never
 retype their steps as shell: scripts do the sign-off's bookkeeping, and agents and the user do
 its judging.
 
@@ -45,8 +46,11 @@ its judging.
 3. **Start the run log.** Keep, for the rest of the run: every agent's transcript path
    (`output_file`), recorded as you spawn it; one diff file per gate, written to the scratchpad
    (`git diff <base> <commit> > diff-<gate>.patch`), never one file rewritten as fixes land; and
-   the **resolutions pack**, one row per finding and remedy:
-   `| id | agent | finding | remedy | resolution |`.
+   the **resolutions pack**, a Markdown file with two tables. Under `## Sources`,
+   `| agent | transcript | findings |`: one row per agent whose findings it carries, with the
+   count it returned, or `survivors <path>` for a mutant triager. Under `## Resolutions`,
+   `| id | agent | finding | remedy | resolution |`: one row per finding and remedy, a finding
+   split into several remedies sharing its id up to a dot (`CR-2.a`, `CR-2.b`).
 
 ## The gates, in core's order
 
@@ -108,7 +112,11 @@ Run only the selected ones, in this order. Act on what each surfaces before star
      touched, at any later point in the run. A verdict on a changed line no longer stands.
 
 4. **The resolutions pass: does anything approve its own fix?** Always runs. Commit, run
-   `sign-off.mjs check`, then **check every judging agent's transcript** before reading the pack:
+   `sign-off.mjs check`, then **lint the pack** before anything reads it:
+   `node <scripts>/pack-lint.mjs <pack>`. It fails on an agent's finding with no row, a mutant
+   triager's rows that don't match its survivors file's line count, a missing transcript, a row
+   with two remedies or none, and a FIXED cell that doesn't cite a recorded red. Fix the pack and
+   lint it again; a failing pack starts no judging. Then **check every judging agent's transcript**:
    `transcript.mjs check <transcript> <agent> [--label <name>]`. It rejects a missing
    transcript, a fork, an agent not launched as its core definition, one that never handed back,
    and a brief that differs from the one rendered for it, showing the diff. Re-run each rejected
@@ -165,13 +173,17 @@ isn't done.
   "transient" or "accepted" is not a resolution for it, and neither is a tool refusing the fix.
 - **"A follow-up" holds only with a filed issue's number.** A risk deferred to a later or on-device
   check is written into that issue's criteria, with the exact steps, in the same step.
-- **A fix is pinned only by a test that fails when the fix is removed.** Prove it on a throwaway
-  copy (remove the call, show the named test red), never by mutating the source in place, and save
-  the output. A fix of several parts is ablated part by part, and a part whose removal changes
-  nothing is deleted. A test named for a combination first shows its fixture meets each condition.
+- **A fix is pinned only by a test that fails when the fix is removed.** Prove it with the
+  red-proof recorder, never by mutating the source in place:
+  `node <scripts>/red-proof.mjs <row id> --file <path> --find <the fix> --replace <it undone> --test <name>`.
+  It runs the test on a throwaway copy with the mutation applied, fails if the test still passes,
+  and prints the row's resolution, `FIXED: <test> — red <log path>`. A FIXED cell in any other
+  form fails the pack lint. A fix of several parts is ablated part by part, one recorded red each,
+  and a part whose removal changes nothing is deleted. A test named for a combination first shows its fixture meets each condition.
 - **The pack copies, it does not recount.** A figure is the saved output's own summary line, whole.
   A row says withdrawn or superseded only once that edit is made.
-- **Save every red as it fails**, with `git rev-parse HEAD` and `git status --short` beside it.
+- **Save every other red as it fails**, with `git rev-parse HEAD` and `git status --short` beside
+  it. The recorder does this for the reds it runs.
 - **Before a fix corrects a claim, grep its wording** across the repo, not only the file it was
   found in.
 

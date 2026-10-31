@@ -63,6 +63,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const mutation = []
   const verify = []
   const check = []
+  const test = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -82,6 +83,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
     const build = stack.check === undefined ? fragment.check : validCommands(stack.check, `stacks.${pack}.check`, CHECK_EXAMPLE, errors)
+    const one = stack.test === undefined ? fragment.test : validTest(stack.test, `stacks.${pack}.test`, errors)
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -104,6 +106,7 @@ export async function loadConfig(projectDir, pluginRoot) {
       }
       if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
       if (build?.length) check.push({ pack, root: trimRoot(root), run: build })
+      if (one) test.push({ pack, root: trimRoot(root), run: one })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -140,7 +143,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   }
   const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors)
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, signOff, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, test, signOff, tracker, domain, contextErrors } }
 }
 
 /** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */
@@ -191,6 +194,13 @@ function validSignOff(block = {}, engines, projectDir, errors) {
     for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) errors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
   }
   return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs, diagrams }
+}
+
+/** [command] if it is a list of words with one holding `{test}`, the test to run, else null with an error under [label]. */
+function validTest(command, label, errors) {
+  if (isStrings(command) && command.some((word) => word.includes('{test}'))) return command
+  errors.push(`${label}: expected a command as a list of words, one holding {test}, such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'].`)
+  return null
 }
 
 const CHECK_EXAMPLE = "[['pnpm', 'lint'], ['pnpm', 'test']]"
