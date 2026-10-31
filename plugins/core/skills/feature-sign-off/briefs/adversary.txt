@@ -1,0 +1,4 @@
+{opening}
+The issue it claims to deliver: {issue}
+Its parent, where it has one: {parent}
+Already read by other agents, so start here: {files}. Read anything else you want.

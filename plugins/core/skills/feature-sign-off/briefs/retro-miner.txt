@@ -1,0 +1,5 @@
+Repo: {repo} ({checkout}; stay in it).
+Base: {base}. The change as committed: git log --stat {base}..HEAD and git diff {base}..HEAD
+Transcript reports: {transcripts}
+The resolutions pack: {pack}
+Memory index: {memory}

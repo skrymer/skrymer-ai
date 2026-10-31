@@ -22,11 +22,15 @@ passed.
 **Every judgement runs in a fresh, read-only agent**, spawned by its core definition
 (`subagent_type: core:<name>`) with a brief that holds only that run's slots. Never judge through
 a fork of this conversation, and never judge your own fix. The protection is the fresh context.
-The agents' contracts are in their definitions, and the slots in
-[references/briefs.md](references/briefs.md).
+The agents' contracts are in their definitions. **Render every brief** with the brief renderer
+and send its output exactly as printed, never retyped or added to
+([references/briefs.md](references/briefs.md)).
 
-Scripts do the bookkeeping: `node <base>/../../scripts/sign-off.mjs`, where `<base>` is this
-skill's base directory, run from the project root. Never retype its steps as shell.
+Scripts do the bookkeeping, from the project root, where `<scripts>` is `<base>/../../scripts`
+and `<base>` is this skill's base directory: `sign-off.mjs` (the plan and the check),
+`brief.mjs` (each brief) and `transcript.mjs` (what each agent was sent and returned). Never
+retype their steps as shell: scripts do the sign-off's bookkeeping, and agents and the user do
+its judging.
 
 ## Before any agent
 
@@ -93,8 +97,14 @@ Run only the selected ones, in this order. Act on what each surfaces before star
      touched, at any later point in the run. A verdict on a changed line no longer stands.
 
 4. **The resolutions pass: does anything approve its own fix?** Always runs. Commit, run
-   `sign-off.mjs check`, then spawn the **resolutions** agent (`core:resolutions`) with the pack,
-   the commit as it ships, every transcript path, and the saved output of every run the pack cites.
+   `sign-off.mjs check`, then **check every judging agent's transcript** before reading the pack:
+   `transcript.mjs check <transcript> <agent> [--label <name>]`. It rejects a missing
+   transcript, a fork, an agent not launched as its core definition, one that never handed back,
+   and a brief that differs from the one rendered for it, showing the diff. Re-run each rejected
+   agent, rendered and launched as its definition, and act on what it returns before going on.
+   Then save each agent's report (`transcript.mjs <transcript> > <scratch>/report-<agent>.txt`)
+   and spawn the **resolutions** agent (`core:resolutions`) with the pack, the commit as it
+   ships, every report, and the saved output of every run the pack cites.
    It judges each fix and each dismissal against the transcripts, checks the pack is faithful, and
    checks the mandatory agents ran. A rejected row goes back to the gate that owns it, and that
    gate's re-run closes it. It is not a second code review: it hunts nothing.
@@ -159,7 +169,7 @@ isn't done.
 1. If any gate changed code, run `sign-off.mjs check` once more. It must pass before the commit.
 2. **Commit and push** on the feature branch, grouped by concern. Open the PR if the user wants
    one, noting the gates that ran.
-3. **Retro.** Spawn the **retro miner** (`core:retro-miner`) with every transcript path, the pack
+3. **Retro.** Spawn the **retro miner** (`core:retro-miner`) with every transcript report, the pack
    and the base. It proposes lessons, each with evidence and the one file it belongs in. You apply
    them: a skill or hook edit goes on its own branch and PR, never onto the feature branch, and a
    memory entry is written directly. "Nothing worth recording" is a result.

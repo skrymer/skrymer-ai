@@ -1,0 +1,3 @@
+{opening}
+The verify results file: {results}, stamped at {head}
+Probe values the acceptance ledger named: {probes}

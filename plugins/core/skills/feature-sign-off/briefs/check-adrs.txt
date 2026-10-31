@@ -1,0 +1,4 @@
+{opening}
+Scope, as the scope script printed it:
+{scope}
+The issue: {issue}
