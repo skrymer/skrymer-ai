@@ -8,6 +8,9 @@ import { runScript } from './git-fixture.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'mermaid-check.mjs')
 
+/** What mermaid-cli prints when Puppeteer can't launch Chromium. */
+const NO_BROWSER = 'Error: Failed to launch the browser process!\n[0101/000000:FATAL:zygote_host_impl_linux.cc(127)] No usable sandbox!\n\nTROUBLESHOOTING: https://pptr.dev/troubleshooting\n    at ChildProcess.onClose (launch.js:346:24)'
+
 /**
  * A stand-in for mermaid-cli: it logs its arguments, fails like the real one on a block holding
  * BROKEN, and otherwise writes the output file.
@@ -21,6 +24,10 @@ function stubCli() {
 const args = process.argv.slice(2)
 const at = (flag) => args[args.indexOf(flag) + 1]
 appendFileSync(${JSON.stringify(log)}, args.filter((a) => !a.includes('/')).join(' ') + '\\n')
+if (process.env.STUB_NO_BROWSER) {
+  console.error(${JSON.stringify(NO_BROWSER)})
+  process.exit(1)
+}
 if (readFileSync(at('-i'), 'utf8').includes('BROKEN')) {
   console.error('Error: Parse error on line 2:\\n...b[[[\\n------^\\nExpecting SQE, got EOF')
   process.exit(1)
@@ -96,4 +103,20 @@ test('a Puppeteer config named in the environment reaches the renderer', () => {
 
   // Then the renderer got the config through -p
   assert.match(cli.calls(), /-p/)
+})
+
+test('a browser that will not start stops the check instead of failing a diagram', () => {
+  // Given a doc with a valid diagram, and a renderer whose Chromium can't launch
+  const cli = stubCli()
+  const dir = docs({ 'README.md': `## Flow\n\n${block('flowchart LR\n  a --> b')}` })
+
+  // When it is checked
+  const { status, stdout } = runScript(SCRIPT, dir, ['README.md'], { ...cli.env, STUB_NO_BROWSER: '1' })
+
+  // Then it stops on the browser, with Puppeteer's reason and how to point it at a Chromium
+  assert.equal(status, 1)
+  assert.equal(
+    stdout,
+    'STOP: mermaid-cli could not start a browser, so no diagram was checked: Failed to launch the browser process! No usable sandbox! Set SKRYMER_AI_PUPPETEER_CONFIG to a Puppeteer config file, such as {"executablePath": "<path to chrome>"} for a local Chromium, or {"args": ["--no-sandbox"]} where the system restricts its sandbox.\n'
+  )
 })

@@ -10,7 +10,8 @@
  * `SKRYMER_AI_MERMAID_CLI` names another command. mermaid-cli drives a headless Chromium through
  * Puppeteer; `SKRYMER_AI_PUPPETEER_CONFIG` names a Puppeteer config file for it, such as one
  * pointing at a local Chromium. It fails naming each block that doesn't render by its doc, the
- * heading it sits under and the renderer's last word.
+ * heading it sits under and the renderer's last word, and stops, blaming no diagram, when the
+ * browser itself won't start.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -21,6 +22,10 @@ import { fileURLToPath } from 'node:url'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const CLI = ['npx', '-y', '@mermaid-js/mermaid-cli@11.17.0']
+
+/** What Puppeteer says when it can't launch Chromium: a fault of the machine, never of a diagram. */
+const BROWSER_FAILURE = /Failed to launch the browser process|Could not find (?:Chrome|Chromium|expected browser)|Browser was not found/
+const PUPPETEER_HINT = 'Set SKRYMER_AI_PUPPETEER_CONFIG to a Puppeteer config file, such as {"executablePath": "<path to chrome>"} for a local Chromium, or {"args": ["--no-sandbox"]} where the system restricts its sandbox.'
 
 class Stop extends Error {}
 
@@ -79,7 +84,15 @@ function render(body, stem) {
   const run = spawnSync(command, args, { encoding: 'utf8' })
   if (run.status === 0 && existsSync(`${stem}.svg`)) return null
   if (run.error) return `the renderer could not start (${run.error.message})`
-  const said = `${run.stdout ?? ''}\n${run.stderr ?? ''}`.split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('at '))
+  const said = `${run.stdout ?? ''}\n${run.stderr ?? ''}`
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('at ') && !line.startsWith('TROUBLESHOOTING:'))
+  const launch = said.findIndex((line) => BROWSER_FAILURE.test(line))
+  if (launch >= 0) {
+    const why = said.slice(launch, launch + 2).map((line) => line.replace(/^Error:\s*/, '').replace(/^\[[^\]]*\]\s*/, '')).join(' ')
+    throw new Stop(`mermaid-cli could not start a browser, so no diagram was checked: ${why} ${PUPPETEER_HINT}`)
+  }
   return said.at(-1) ?? `the renderer exited ${run.status ?? run.signal} without a word`
 }
 
