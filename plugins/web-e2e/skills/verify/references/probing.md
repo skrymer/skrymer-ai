@@ -39,15 +39,7 @@ the reset. And:
 
 ## Driving them
 
-- **Force a failure branch with a labelled shim**, not a real value that happens to fail some
-  other way: `route` the one request to a status, a network error or a hold, and say so in the
-  note. `unroute` after.
-- **Reload before reading the page again** after a shim or a write made straight to the API.
-  Neither re-reads the page's data, so a stale row isn't a finding until a fresh page shows it.
-- **Check a field's value after typing into it.** `fill` sets it at once; `type` sends keys.
-  Drive the golden path and one boundary with `type`, since keystroke and blur timing is where
-  some bugs live.
-- **Assert a precondition before a committing click.** A selector that matches nothing changes
-  nothing, and the Save after it saves the record unchanged: a probe that reads as passed.
+Drive every probe as [driving.md](driving.md) says.
+
 - **"Can't be driven" is a claim.** Before writing it, look for every endpoint that can put
   the app in that state, and for rows already stored that hold it.
