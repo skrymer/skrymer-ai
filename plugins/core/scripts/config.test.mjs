@@ -683,7 +683,7 @@ test('a signOff field core does not know is an error listing the fields', async 
   const result = await loadConfig(project, PLUGIN_ROOT)
 
   // Then the error names the field and the ones there are
-  assert.deepEqual(result, { errors: ['signOff: there is no field "order". Fields: gates, docs.'] })
+  assert.deepEqual(result, { errors: ['signOff: there is no field "order". Fields: gates, docs, diagrams.'] })
 })
 
 test('the sign-off docs a config lists are kept for the doc-drift greps, and default to none', async () => {
@@ -695,8 +695,8 @@ test('the sign-off docs a config lists are kept for the doc-drift greps, and def
   const [a, b] = await Promise.all([loadConfig(listed, PLUGIN_ROOT), loadConfig(unlisted, PLUGIN_ROOT)])
 
   // Then the listed docs are kept, the unlisted are empty, and docs alone leave every available gate selected
-  assert.deepEqual(a.config.signOff, { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['docs/**/*.md', 'DESIGN.md'] })
-  assert.deepEqual(b.config.signOff, { gates: ['simplify'], docs: [] })
+  assert.deepEqual(a.config.signOff, { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['docs/**/*.md', 'DESIGN.md'], diagrams: [] })
+  assert.deepEqual(b.config.signOff, { gates: ['simplify'], docs: [], diagrams: [] })
 })
 
 test('each stack root gets its pack’s check commands, unless the stack names its own', async () => {
@@ -728,4 +728,29 @@ test('a stack check that is not a list of commands is an error showing the shape
   assert.deepEqual(result, {
     errors: ["stacks.nuxt.check: expected a list of commands, each a list of words, such as [['pnpm', 'lint'], ['pnpm', 'test']]."],
   })
+})
+
+test('the docs whose diagrams the sign-off audits are kept when each exists, and default to none', async () => {
+  // Given a config naming an architecture doc that exists
+  const project = fixtureProject(configOf(`{ signOff: { diagrams: ['docs/ARCHITECTURE.md'] } }`), ['docs'])
+  writeFileSync(join(project, 'docs', 'ARCHITECTURE.md'), '# Acme\n')
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the doc is kept for the diagram auditor
+  assert.deepEqual(config.signOff.diagrams, ['docs/ARCHITECTURE.md'])
+})
+
+test('a diagrams doc that does not exist, or diagrams that are not a list of docs, is an error', async () => {
+  // Given one config naming a missing doc and one naming a glob as a string
+  const missing = fixtureProject(configOf(`{ signOff: { diagrams: ['docs/GONE.md'] } }`))
+  const shape = fixtureProject(configOf(`{ signOff: { diagrams: 'docs/*.md' } }`))
+
+  // When both are loaded
+  const [a, b] = await Promise.all([loadConfig(missing, PLUGIN_ROOT), loadConfig(shape, PLUGIN_ROOT)])
+
+  // Then each names the problem
+  assert.deepEqual(a, { errors: ['signOff.diagrams: "docs/GONE.md" does not exist in the project.'] })
+  assert.deepEqual(b, { errors: ["signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md']."] })
 })

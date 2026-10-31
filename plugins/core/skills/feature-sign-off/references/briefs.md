@@ -34,6 +34,7 @@ long to quote, such as the scope script's.
 | `results`, `head` | The verify results file and the commit its head file names (verdict auditor) |
 | `probes` | Each `MET (probe: …)` row the acceptance ledger returned, quoted, or none |
 | `memory` | The memory index's path, or none (retro miner) |
+| `docs` | The docs the plan names for the diagram auditor, from `signOff.diagrams` |
 
 The blind arbiter's brief has no diff, by design: the working tree is not evidence for either
 position. A position carries what its agent cited, never your resolution row, and never a "for

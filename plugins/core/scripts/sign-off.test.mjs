@@ -170,3 +170,16 @@ test('a branch with no change stops the plan, since nothing is there to sign off
   assert.equal(status, 1)
   assert.match(out, /^STOP: the branch holds no change since [0-9a-f]{7}, so there is nothing to sign off\.$/m)
 })
+
+test('the plan turns the diagram auditor on for the docs signOff.diagrams names, and says when it is off', () => {
+  // Given one project naming an architecture doc for the auditor and one naming none
+  const on = project({ ...KOTLIN_CHANGE, 'docs/ARCHITECTURE.md': '# Acme\n' }, { signOff: `{ diagrams: ['docs/ARCHITECTURE.md'] }` })
+  const off = project(KOTLIN_CHANGE)
+
+  // When each plans
+  const [a, b] = [on, off].map((dir) => runScript(SCRIPT, dir).out)
+
+  // Then the first names the auditor and its doc, and the second says it is off
+  assert.match(a, /^diagram auditor, in the judging message: docs\/ARCHITECTURE\.md$/m)
+  assert.match(b, /^diagram auditor: off \(signOff\.diagrams names no doc\)$/m)
+})

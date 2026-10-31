@@ -138,7 +138,7 @@ export async function loadConfig(projectDir, pluginRoot) {
       if (!isDirectory(join(projectDir, context))) contextErrors.push(`domain.contexts: "${context}" does not exist in the project.`)
     }
   }
-  const signOff = validSignOff(project.signOff, { mutation, verify }, errors)
+  const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors)
   if (errors.length) return { errors }
   return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, signOff, tracker, domain, contextErrors } }
 }
@@ -149,15 +149,16 @@ export const GATES = ['simplify', 'mutation', 'code-review', 'check-adrs', 'veri
 /** The gates that need an engine from an enabled pack, and run once per stack root that has one. */
 const ENGINE_GATES = ['mutation', 'verify']
 
-const SIGN_OFF_FIELDS = ['gates', 'docs']
+const SIGN_OFF_FIELDS = ['gates', 'docs', 'diagrams']
 
 /**
- * The sign-off a project selects, `{ gates, docs }`: the gates in core's order, and the globs of
- * the project's other living docs, which check-adrs greps for drift. With no `gates`, every gate
+ * The sign-off a project selects, `{ gates, docs, diagrams }`: the gates in core's order, the
+ * globs of the project's other living docs, which check-adrs greps for drift, and the docs whose
+ * diagrams the diagram auditor checks still draw the code, each of which must exist. With no `gates`, every gate
  * whose engine an enabled pack provides is selected; [engines] holds the merged mutation and
  * verify stacks. An unknown gate, or an engine gate no enabled pack provides, is an error.
  */
-function validSignOff(block = {}, engines, errors) {
+function validSignOff(block = {}, engines, projectDir, errors) {
   const available = (gate) => !ENGINE_GATES.includes(gate) || engines[gate].length > 0
   if (!isObject(block)) {
     errors.push(`signOff: expected { ${SIGN_OFF_FIELDS.join(', ')} }.`)
@@ -166,7 +167,7 @@ function validSignOff(block = {}, engines, errors) {
   for (const field of Object.keys(block)) {
     if (!SIGN_OFF_FIELDS.includes(field)) errors.push(`signOff: there is no field "${field}". Fields: ${SIGN_OFF_FIELDS.join(', ')}.`)
   }
-  const { gates = GATES.filter(available), docs = [] } = block
+  const { gates = GATES.filter(available), docs = [], diagrams = [] } = block
   if (!Array.isArray(gates) || !gates.every((gate) => typeof gate === 'string')) {
     errors.push("signOff.gates: expected a list of gates, such as ['simplify', 'code-review'].")
   } else {
@@ -180,7 +181,12 @@ function validSignOff(block = {}, engines, errors) {
   if (!Array.isArray(docs) || !docs.every((glob) => typeof glob === 'string' && glob)) {
     errors.push("signOff.docs: expected a list of globs, such as ['docs/**/*.md'].")
   }
-  return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs }
+  if (!Array.isArray(diagrams) || !diagrams.every((doc) => typeof doc === 'string' && doc)) {
+    errors.push("signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md'].")
+  } else {
+    for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) errors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
+  }
+  return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs, diagrams }
 }
 
 const CHECK_EXAMPLE = "[['pnpm', 'lint'], ['pnpm', 'test']]"

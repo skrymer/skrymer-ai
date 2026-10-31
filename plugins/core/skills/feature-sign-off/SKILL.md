@@ -71,6 +71,8 @@ Run only the selected ones, in this order. Act on what each surfaces before star
    - the **code-reviewer** (`core:code-reviewer`), when code-review is selected;
    - the **check-adrs** agent (`core:check-adrs`), when check-adrs is selected, briefed from
      `/core:check-adrs`'s scope script as that skill says;
+   - the **diagram auditor** (`core:diagram-auditor`), when the plan names docs for it
+     (`signOff.diagrams`), with those docs;
    - the **adversary** (`core:adversary`), always;
    - the **acceptance ledger** (`core:acceptance-ledger`), always, including a change with no
      issue or an issue with no criteria, which comes back SKIPPED. A SKIPPED ledger is a result.
@@ -86,7 +88,9 @@ Run only the selected ones, in this order. Act on what each surfaces before star
      the repo's recorded decisions can't answer, a check-adrs FAIL (offer both the code fix and
      the same-change doc amendment), and anything an agent marks as the user's call. Each is a
      product decision, and no agent owns it.
-   - **Everything else is fix-or-justify** (below). Batch a gate's fixes, then run the touched
+   - **Everything else is fix-or-justify** (below), the diagram auditor's STALE and MISSING rows
+     included. A diagram fix passes the render check before it lands:
+     `node <scripts>/mermaid-check.mjs <doc>`. Batch a gate's fixes, then run the touched
      tests once.
    - **Re-check after the fixes land**, only where they touched: the constraints check-adrs cited,
      and each ledger row against the criterion's own words. A fix that now answers a different

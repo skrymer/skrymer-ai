@@ -3,7 +3,8 @@
  * The sign-off's bookkeeping, scripted so the conductor reads its plan rather than working it out.
  *
  *   node sign-off.mjs          the plan: the selected gates in core's order, the stacks each
- *                              engine gate runs over, and the check each touched stack runs
+ *                              engine gate runs over, the docs the diagram auditor checks, and
+ *                              the check each touched stack runs
  *   node sign-off.mjs check    each touched stack's check commands, run in its root
  *
  * Core fixes the order of the gates; the project config's `signOff.gates` selects among them
@@ -64,7 +65,9 @@ function plan({ signOff, mutation, verify, check: stacks }, { base, changed, tou
   })
   const unselected = GATES.filter((gate) => !signOff.gates.includes(gate))
   if (unselected.length) lines.push(`  not selected: ${unselected.join(', ')}`)
-  lines.push(`fixed core, in every sign-off: ${FIXED_CORE.join(', ')}`, 'check, before any agent:')
+  lines.push(`fixed core, in every sign-off: ${FIXED_CORE.join(', ')}`)
+  lines.push(signOff.diagrams.length ? `diagram auditor, in the judging message: ${signOff.diagrams.join(', ')}` : 'diagram auditor: off (signOff.diagrams names no doc)')
+  lines.push('check, before any agent:')
   if (!stacks.length) lines.push('  no enabled stack has a check command')
   for (const stack of stacks) {
     lines.push(`  ${label(stack)}: ${touches(stack) ? stack.run.map((words) => words.join(' ')).join(' && ') : `SKIP — the branch changed nothing under ${stack.root}`}`)
