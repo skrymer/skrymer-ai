@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Let Puppeteer's Chromium run without its sandbox, which Ubuntu's runners restrict
+        run: echo '{"args":["--no-sandbox"]}' > "$RUNNER_TEMP/puppeteer.json" && echo "SKRYMER_AI_PUPPETEER_CONFIG=$RUNNER_TEMP/puppeteer.json" >> "$GITHUB_ENV"
       - run: npm run check
       - run: npm install -g @anthropic-ai/claude-code@2.1.280
       - run: claude plugin validate .
