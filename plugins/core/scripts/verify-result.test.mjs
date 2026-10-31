@@ -332,3 +332,120 @@ test('a project whose stacks never verify has no targets to record against', () 
   assert.equal(status, 1)
   assert.match(out, /no stack in the project config verifies/)
 })
+
+const CHARTERS = [
+  'explore the order form with a double-submit to discover duplicate orders',
+  'explore the order history with another user’s order ID in the URL to discover a leak across accounts',
+]
+
+test('charter registers an exploratory charter in the session form and prints its key', () => {
+  // Given a project whose head is stamped
+  const dir = project()
+  result(dir, 'head', '8')
+
+  // When two charters are registered
+  const outs = CHARTERS.map((charter) => result(dir, 'charter', '8', charter))
+
+  // Then each gets the next EX key, in order, and is kept beside the results
+  assert.deepEqual(outs, [
+    { status: 0, out: `EX-8.1  ${CHARTERS[0]}\n` },
+    { status: 0, out: `EX-8.2  ${CHARTERS[1]}\n` },
+  ])
+  assert.equal(readFileSync(verifyDir(dir, 'charters.tsv'), 'utf8'), `EX-8.1\t${CHARTERS[0]}\nEX-8.2\t${CHARTERS[1]}\n`)
+})
+
+test('charter refuses text that is not "explore <area> with <attack> to discover <risk>"', () => {
+  // Given a project whose head is stamped
+  const dir = project()
+  result(dir, 'head', '8')
+
+  // When a bare idea is registered as a charter
+  const { status, out } = result(dir, 'charter', '8', 'try to break the order form')
+
+  // Then it is refused with the form, and nothing is kept
+  assert.equal(status, 1)
+  assert.equal(out, 'STOP: a charter reads "explore <area> with <attack> to discover <risk>", on one line.\n')
+  assert.equal(existsSync(verifyDir(dir, 'charters.tsv')), false)
+})
+
+test('a charter row is recorded like an AC row, and always names what was tried', () => {
+  // Given a project with one registered charter
+  const dir = project()
+  result(dir, 'head', '8')
+  result(dir, 'charter', '8', CHARTERS[0])
+
+  // When the charter's result is recorded with a note, then without one, then for a charter never registered, then as not visible
+  const recorded = result(dir, 'record', 'EX-8.1', 'desktop', 'fail', '--screenshot', 'shot.png', '--note', 'clicked Place order twice in 80 ms: two orders, #41 and #42')
+  const refusals = [
+    result(dir, 'record', 'EX-8.1', 'phone', 'pass', '--screenshot', 'shot.png'),
+    result(dir, 'record', 'EX-8.2', 'desktop', 'pass', '--screenshot', 'shot.png', '--note', 'reloaded mid-save'),
+    result(dir, 'record', 'EX-8.1', '-', 'not-visible', '--note', 'server side'),
+  ]
+
+  // Then the noted row is written beside its screenshot, and each other is refused with the reason
+  assert.deepEqual(recorded, { status: 0, out: 'recorded EX-8.1 desktop fail\n' })
+  assert.equal(rows(dir), 'EX-8.1\tdesktop\tfail\tEX-8.1-desktop.png\tclicked Place order twice in 80 ms: two orders, #41 and #42\n')
+  assert.deepEqual(refusals, [
+    { status: 1, out: 'STOP: a charter row needs a --note naming what was tried, the values included.\n' },
+    { status: 1, out: 'STOP: there is no charter EX-8.2 for issue 8. Register it first: charter 8 "explore <area> with <attack> to discover <risk>".\n' },
+    { status: 1, out: 'STOP: a charter is driven at a target, so it is never not-visible.\n' },
+  ])
+})
+
+test('a charter row needs a screenshot like an AC row, since it is driven in the browser too', () => {
+  // Given a project with an authority charter
+  const dir = project()
+  result(dir, 'head', '8')
+  result(dir, 'charter', '8', CHARTERS[1])
+
+  // When it is recorded as failing with no screenshot
+  const recorded = result(dir, 'record', 'EX-8.1', 'desktop', 'fail', '--note', 'opened /orders/41 signed in as the second user: the first user’s order')
+
+  // Then it is refused, as an AC's fail would be
+  assert.deepEqual(recorded, { status: 1, out: 'STOP: a fail needs a --screenshot of what the walk-through saw.\n' })
+})
+
+test('check --explore passes when every charter has a row, and lists the charters after the ACs', () => {
+  // Given every AC recorded and both charters driven, one at a single target
+  const dir = project()
+  result(dir, 'head', '8')
+  recordAll(dir)
+  for (const charter of CHARTERS) result(dir, 'charter', '8', charter)
+  result(dir, 'record', 'EX-8.1', 'desktop', 'pass', '--screenshot', 'shot.png', '--note', 'double-clicked Place order: one order, the button disabled after the first')
+  result(dir, 'record', 'EX-8.2', 'phone', 'blocked', '--note', 'the second user could not be minted')
+
+  // When the explored results are checked
+  const { status, out } = result(dir, 'check', '8', '--explore')
+
+  // Then it passes, naming each charter's result
+  assert.equal(status, 0, out)
+  assert.deepEqual(out.trimEnd().split('\n').slice(-4), [
+    '3 ACs, every one with a result.',
+    `EX-8.1  ${CHARTERS[0]}: desktop pass: double-clicked Place order: one order, the button disabled after the first`,
+    `EX-8.2  ${CHARTERS[1]}: phone blocked: the second user could not be minted`,
+    '2 charters, every one with a result.',
+  ])
+})
+
+test('check --explore fails on a charter with no row, and on a run that explored no charter', () => {
+  // Given one project with a charter left undriven, and one with every AC recorded and no charter
+  const undriven = project()
+  result(undriven, 'head', '8')
+  recordAll(undriven)
+  result(undriven, 'charter', '8', CHARTERS[0])
+  const unexplored = project()
+  result(unexplored, 'head', '8')
+  recordAll(unexplored)
+
+  // When each is checked with --explore, and the second without it
+  const missing = result(undriven, 'check', '8', '--explore')
+  const none = result(unexplored, 'check', '8', '--explore')
+  const plain = result(unexplored, 'check', '8')
+
+  // Then the first names the charter, the second says nothing was explored, and a plain check asks for no charter
+  assert.equal(missing.status, 1)
+  assert.deepEqual(missing.out.trimEnd().split('\n').slice(-2), [`EX-8.1  ${CHARTERS[0]}: MISSING`, 'INCOMPLETE: 1 of 1 charter lacks a result.'])
+  assert.equal(none.status, 1)
+  assert.equal(none.out.trimEnd().split('\n').at(-1), 'INCOMPLETE: no charter was explored. Each is registered with charter 8 "<charter>" and driven to a row.')
+  assert.equal(plain.status, 0, plain.out)
+})

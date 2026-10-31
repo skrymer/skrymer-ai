@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Walks an issue's acceptance criteria in a real headless browser at every viewport the project config names, and records a result per AC (pass or fail with a screenshot, blocked, or not user-visible with a reason) for the AC coverage report. Use when a user-facing change is functionally complete and needs runtime evidence, when the user says "verify this", "walk it through", "check it in the browser" or "does it actually work", or before opening a PR that touches a screen. Runtime behaviour only: not for type checks, builds, linting or code review.
+description: Walks an issue's acceptance criteria in a real headless browser at every viewport the project config names, and records a result per AC (pass or fail with a screenshot, blocked, or not user-visible with a reason) for the AC coverage report. With --explore, a fresh break-it tester then tries to break the change beyond its ACs through charters it records the same way. Use when a user-facing change is functionally complete and needs runtime evidence, when the user says "verify this", "walk it through", "check it in the browser" or "does it actually work", or before opening a PR that touches a screen. Runtime behaviour only: not for type checks, builds, linting or code review.
 ---
 
 # Verify
@@ -15,7 +15,7 @@ Scripts do the deterministic parts, all through one entrypoint, `node <base>/../
 
 | Command | Does |
 | --- | --- |
-| `verify.mjs result head <issue>` / `record …` / `check <issue>` | The results file the coverage report reads, and the check that every AC has a result. |
+| `verify.mjs result head <issue>` / `charter <issue> "<charter>"` / `record …` / `check <issue> [--explore]` | The results file the coverage report reads, the charters an exploration registers, and the check that every AC and charter has a result. |
 | `verify.mjs stack up [--disposable-db] [--env K=V …]` / `down` | Starts the stack, a fresh signed-in verify user and the dev server from the project config; prints `dev server: <url>`. `down` stops only what `up` started. |
 | `verify.mjs api users <n>` / `request <METHOD> <path> [--as <email>] [--data <json>] [--expect <status>]` | Seeds data and checks server rules through the dev proxy, with the cookie jar and CSRF pair handled. |
 | `verify.mjs browser open [--headed] <url>` / `layout <target>` / `close` | One headless `playwright-cli` session per target; prints the command that drives each and where screenshots go. `layout` runs the scripted layout checks. |
@@ -35,19 +35,15 @@ and never write the results file or a verdict table in place of `record` and `ch
 3. **Record the not-visible ACs**: `verify.mjs result record AC-<issue>.<n> - not-visible --note "<reason>"`.
 4. **Bring the stack up**: `verify.mjs stack up` (`--disposable-db` when the walk writes data
    you don't want kept). Drive the URL it prints, never the port you expected.
-5. **Open the browser**: `verify.mjs browser open <url>`. Use the commands it prints, one
-   session per target, headless. Add `--headed` only when the user asks to watch.
+5. **Open the browser**: `verify.mjs browser open <url>`. Drive it as
+   [references/driving.md](references/driving.md) says: one session per target, by ref, shims
+   labelled, and the evidence read before you navigate away.
 6. **Seed over the API** (`verify.mjs api`), not through the UI, unless the setup is the AC.
 7. **Walk each visible AC at every target.** Per AC and target:
-   - `goto` the screen, `snapshot` for element refs, and drive by ref (`click e12`, `fill e5
-     "…"`, `press Enter`). Never by pixel coordinates.
    - Drive the golden path, then **probe the inputs, then the states**
      ([references/probing.md](references/probing.md)). A probe that breaks fails the AC.
-   - `screenshot --filename=<the dir open printed>/<target>/AC-<issue>.<n>.png` of what proves it.
-   - `console error` and `requests`: any uncaught error, or a 5xx from the app's own server,
-     makes the row a `fail` even when the screen looks right. Read both before navigating away.
-   - `verify.mjs browser layout <target>` on the AC's screen. A finding on what the AC touches
-     is a `fail`; one elsewhere on the page goes into the note.
+   - Gather the evidence the driving reference lists: the screenshot
+     (`AC-<issue>.<n>.png`), the console and requests, and the layout check.
    - `verify.mjs result record AC-<issue>.<n> <target> pass|fail --screenshot <file> --note "<what you saw>"`.
 8. **Anything you couldn't walk is `blocked`, never skipped.** When the stack, the browser or
    the screen won't come up, record `verify.mjs result record AC-<issue>.<n> <target> blocked --note "<the
@@ -57,6 +53,11 @@ and never write the results file or a verdict table in place of `record` and `ch
    printed: the results are recorded but unchecked.
 10. **Clean up**: `verify.mjs browser close`, then `verify.mjs stack down`. `git status --short`
     should show nothing the walk-through left behind.
+
+## With `--explore <issue>`
+
+Run after the walk-through: a fresh break-it tester explores beyond the ACs. Follow
+[references/explore.md](references/explore.md), and nothing in the workflow above.
 
 ## Report
 
