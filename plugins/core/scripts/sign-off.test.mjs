@@ -139,6 +139,26 @@ test('a config with errors stops the plan, naming each error', () => {
   assert.match(out, /^ {2}signOff\.gates: there is no gate "lint"\. Gates: simplify, mutation, code-review, check-adrs, verify\.$/m)
 })
 
+test('an engine gate no enabled pack provides stops the plan, naming the fix', () => {
+  // Given a config selecting verify while enabling only kotlin-spring, which brings no verify engine
+  const dir = gitProject(
+    {
+      '.claude/skrymer-ai.config.mjs': configOf(`{ stacks: { 'kotlin-spring': { roots: ['api'] } }, signOff: { gates: ['mutation', 'verify'] } }`),
+      'api/build.gradle.kts': '',
+      'api/src/main/kotlin/acme/Order.kt': 'package acme\n\nclass Order\n',
+    },
+    KOTLIN_CHANGE
+  )
+
+  // When the plan runs
+  const { status, out } = runScript(SCRIPT, dir)
+
+  // Then it stops with the error saying no enabled pack provides verify, and how to fix that
+  assert.equal(status, 1)
+  assert.match(out, /^STOP: the project config has errors:$/m)
+  assert.match(out, /^ {2}signOff\.gates: no enabled pack provides a verify engine\. Enable a stack whose pack has one, or drop "verify" from the gates\.$/m)
+})
+
 test('a branch with no change stops the plan, since nothing is there to sign off', () => {
   // Given a feature branch with nothing changed since its base
   const dir = project({})
