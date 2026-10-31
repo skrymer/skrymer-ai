@@ -23,14 +23,13 @@
 
 import { spawnSync } from 'node:child_process'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
-import { dirname, isAbsolute, join, matchesGlob, relative, resolve } from 'node:path'
+import { dirname, join, matchesGlob, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { branchOf } from './branch.mjs'
-import { loadConfig } from './config.mjs'
+import { changedOnBranch } from './branch.mjs'
+import { loadConfig, trimRoot } from './config.mjs'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const PLUGIN_ROOT = join(dirname(SCRIPT), '..')
-const FETCH_TIMEOUT_MS = 60_000
 
 class Stop extends Error {}
 
@@ -45,35 +44,20 @@ async function main([command, pack, root], projectDir) {
   throw new Stop(`unknown command "${command}". Usage: mutation.mjs [run <pack> [root]]`)
 }
 
-/**
- * The branch as `{ top, base, git, changed, scopeOf }`: its changed files, project-relative
- * (deleted ones included, since a deletion is a change), and each stack's scope among those
- * still on disk. Fetches origin first, because an unfetched origin anchors the merge base
- * wherever this clone last looked.
- */
+/** The branch as `changedOnBranch` measures it, plus each stack's scope among the changed files still on disk. */
 function measure(projectDir) {
-  const fetch = spawnSync('git', ['fetch', '-q', 'origin'], { cwd: projectDir, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS })
-  if (fetch.status !== 0) {
-    const why = fetch.error?.message ?? fetch.stderr.trim().split('\n').at(-1)
-    process.stdout.write(`warning: could not fetch origin (${why}); the base is where this clone last looked.\n`)
-  }
   let branch
   try {
-    branch = branchOf(projectDir)
+    branch = changedOnBranch(projectDir, (warning) => process.stdout.write(`warning: ${warning}\n`))
   } catch (error) {
     throw new Stop(`the base is unresolved: ${error.message}`)
   }
-  const { top, base, git, untracked } = branch
-  const changed = [...new Set([...git('-c', 'core.quotePath=false', 'diff', '--name-only', base).split('\n'), ...untracked()])]
-    .filter(Boolean)
-    .map((file) => relative(projectDir, join(top, file)))
-    .filter((file) => !file.startsWith('..') && !isAbsolute(file))
-    .sort()
+  const { base, changed } = branch
   if (!changed.length) throw new Stop(`the branch holds no change since ${base.slice(0, 7)}. Nothing was measured, so this is not a skip.`)
   const onDisk = changed.filter((file) => existsSync(join(projectDir, file)))
   const scopeOf = (stack) =>
     onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && !stack.tests.some((glob) => matchesGlob(file, glob)))
-  return { ...branch, changed, scopeOf }
+  return { ...branch, scopeOf }
 }
 
 function plan(stacks, { base, changed, scopeOf }) {
@@ -176,7 +160,6 @@ function capped(command, memory) {
 
 const label = (stack) => `${stack.pack} (${stack.root || '.'})`
 const count = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`
-const trimRoot = (root) => root.replace(/^\.\/+/, '').replace(/\/+$/, '').replace(/^\.$/, '')
 
 if (process.argv[1] === SCRIPT) {
   main(process.argv.slice(2), process.cwd()).catch((error) => {
