@@ -62,6 +62,5 @@ here, aimed at a risk rather than an AC.
 
 ## Driving them
 
-- Label every shim in the note (`route` to a 500 on the second call). `unroute` after.
-- Reload before reading again after a shim or a write made over the API.
-- Screenshot what proves the result, at the target you drove it at.
+Drive every charter as [driving.md](driving.md) says, the way the walk-through drives an AC,
+and label every shim in the charter's note.

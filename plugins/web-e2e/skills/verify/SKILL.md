@@ -35,19 +35,15 @@ and never write the results file or a verdict table in place of `record` and `ch
 3. **Record the not-visible ACs**: `verify.mjs result record AC-<issue>.<n> - not-visible --note "<reason>"`.
 4. **Bring the stack up**: `verify.mjs stack up` (`--disposable-db` when the walk writes data
    you don't want kept). Drive the URL it prints, never the port you expected.
-5. **Open the browser**: `verify.mjs browser open <url>`. Use the commands it prints, one
-   session per target, headless. Add `--headed` only when the user asks to watch.
+5. **Open the browser**: `verify.mjs browser open <url>`. Drive it as
+   [references/driving.md](references/driving.md) says: one session per target, by ref, shims
+   labelled, and the evidence read before you navigate away.
 6. **Seed over the API** (`verify.mjs api`), not through the UI, unless the setup is the AC.
 7. **Walk each visible AC at every target.** Per AC and target:
-   - `goto` the screen, `snapshot` for element refs, and drive by ref (`click e12`, `fill e5
-     "…"`, `press Enter`). Never by pixel coordinates.
    - Drive the golden path, then **probe the inputs, then the states**
      ([references/probing.md](references/probing.md)). A probe that breaks fails the AC.
-   - `screenshot --filename=<the dir open printed>/<target>/AC-<issue>.<n>.png` of what proves it.
-   - `console error` and `requests`: any uncaught error, or a 5xx from the app's own server,
-     makes the row a `fail` even when the screen looks right. Read both before navigating away.
-   - `verify.mjs browser layout <target>` on the AC's screen. A finding on what the AC touches
-     is a `fail`; one elsewhere on the page goes into the note.
+   - Gather the evidence the driving reference lists: the screenshot
+     (`AC-<issue>.<n>.png`), the console and requests, and the layout check.
    - `verify.mjs result record AC-<issue>.<n> <target> pass|fail --screenshot <file> --note "<what you saw>"`.
 8. **Anything you couldn't walk is `blocked`, never skipped.** When the stack, the browser or
    the screen won't come up, record `verify.mjs result record AC-<issue>.<n> <target> blocked --note "<the
@@ -81,6 +77,7 @@ walk-through's results, so it doesn't anchor on what passed.
    Stack config: the stacks entry for <root> in .claude/skrymer-ai.config.mjs
    Verify: node <absolute path to verify.mjs>; run from the project root
    Dev server: <the URL stack up printed>. Targets: <each target and its size>
+   Driving: <absolute path to references/driving.md>
    Heuristics: <absolute path to references/heuristics.md>; inputs: <absolute path to references/probing.md>
    ```
 

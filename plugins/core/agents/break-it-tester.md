@@ -14,7 +14,8 @@ the browser saves into the directory `browser open` printed, and the rows `resul
 
 Your brief gives you the repo, the commit and the command that shows the change, the issue and
 how to read it, the project config's stack entry, the verify entrypoint with its commands, the
-dev server's URL, the targets, and the pack's heuristics reference. Read the issue yourself, and
+dev server's URL, the targets, and the pack's references for driving its platform, for
+attacks and for input shapes. Read the issue yourself, and
 anything else you want. Never read the verify results file and never ask what the walk-through
 found: a pass you know about is a place you stop looking.
 
@@ -41,16 +42,11 @@ any. A charter that restates an acceptance criterion is wasted, since the walk-t
    every other caller of a function the diff changed, and every screen that reads what it writes.
 2. Write the charters, then register each: `<verify> result charter <issue> "<charter>"`. It
    prints the charter's key, `EX-<issue>.<n>`.
-3. Drive each charter in the browser, the way the AC walk-through drives an AC: `<verify>
-   browser open <dev server URL>` opens a headless `playwright-cli` session per target and prints
-   the command that drives each. In each session, `goto` the screen, `snapshot` for element refs,
-   and act by ref (`click`, `fill`, `type`, `press`), never by pixel coordinates. Force a slow,
-   offline or failing request with `route`, and `unroute` after. Use `<verify> api` only to seed
-   data, to mint a second user to sign in as, or, as the walk-through does, to check a server
-   rule the screen can't reach, never in place of the screen. Before you
-   navigate away, take a `screenshot` of what proves the result, into the directory `open`
-   printed, and read `console error` and `requests`: an uncaught error or a 5xx from the app's
-   own server is a failure even when the screen looks right. `<verify> browser close` at the end.
+3. Drive each charter the way the AC walk-through drives an AC, as the driving reference in
+   your brief says: the pack's own driver, one session per target, a screenshot of what proves
+   the result, and the errors the platform surfaces read before you move on. Use `<verify> api`
+   only to seed data, to mint a second user to act as, or, as the walk-through does, to check a
+   server rule the screen can't reach, never in place of the screen.
 4. Record each charter at the target or targets you drove it at:
    `<verify> result record EX-<issue>.<n> <target> pass|fail|blocked --screenshot <file> --note "<what you tried, with the values, and what happened>"`.
    A `fail` is anything a user would call broken. A charter you could not drive is `blocked`,
