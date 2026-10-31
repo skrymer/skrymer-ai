@@ -812,3 +812,33 @@ test('a diagrams doc that does not exist leaves every gate in force and lands in
   assert.deepEqual(config.signOff.diagrams, ['docs/GONE.md'])
   assert.deepEqual(config.contextErrors, ['signOff.diagrams: "docs/GONE.md" does not exist in the project.'])
 })
+
+test('each stack root gets its pack’s command for one named test, unless the stack names its own', async () => {
+  // Given kotlin-spring with the pack's command and nuxt with a command of its own
+  const project = fixtureProject(
+    configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] }, nuxt: { roots: ['acme-web'], test: ['npm', 'test', '--', '-t', '{test}'] } } }`),
+    ['acme-api', 'acme-web']
+  )
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each root carries the command the red-proof recorder runs one test with
+  assert.deepEqual(config.test, [
+    { pack: 'kotlin-spring', root: 'acme-api', run: ['./gradlew', 'test', '--tests', '{test}'] },
+    { pack: 'nuxt', root: 'acme-web', run: ['npm', 'test', '--', '-t', '{test}'] },
+  ])
+})
+
+test('a stack test command without {test} is an error showing the shape', async () => {
+  // Given a nuxt stack whose test command can't name a test
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'], test: ['pnpm', 'test'] } } }`), ['acme-web'])
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error says the command needs {test}
+  assert.deepEqual(result, {
+    errors: ["stacks.nuxt.test: expected a command as a list of words, one holding {test}, such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}']."],
+  })
+})

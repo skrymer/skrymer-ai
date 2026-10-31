@@ -4,10 +4,11 @@
  * proposes a root wherever `detect` finds a Gradle build applying Spring Boot, and enables the
  * `lsp` plugins. A test command matches within one shell command. A prompt rule matches the
  * words of a prompt, whatever the roots. `check` is the build and tests the sign-off and CI run
- * in the root, and `lint` the fast check the pre-commit hook runs when the root has staged
- * files; a stack's own `check` or `lint` replaces the pack's. `ci` gives the GitHub Actions
- * steps a CI job takes in the root before its `check`: the JDK the build's toolchain names, else
- * 21, and Gradle with its cache.
+ * in the root, `lint` the fast check the pre-commit hook runs when the root has staged files,
+ * and `test` runs one named test, for the sign-off's red-proof recorder; a stack's own `check`,
+ * `lint` or `test` replaces the pack's. `ci` gives the GitHub Actions steps a CI job takes in
+ * the root before its `check`: the JDK the build's toolchain names, else 21, and Gradle with its
+ * cache.
  */
 export default {
   detect: { files: ['build.gradle.kts', 'build.gradle'], contains: /org\.springframework\.boot/ },
@@ -18,6 +19,7 @@ export default {
     { uses: 'actions/setup-java@v4', with: { distribution: 'temurin', 'java-version': javaVersion(read) } },
     { uses: 'gradle/actions/setup-gradle@v4' },
   ],
+  test: ['./gradlew', 'test', '--tests', '{test}'],
   tdd: {
     files: ['src/**/*.kt'],
     testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],

@@ -73,6 +73,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   const verify = []
   const check = []
   const lint = []
+  const test = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -93,6 +94,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
     const build = stack.check === undefined ? fragment.check : validCommands(stack.check, `stacks.${pack}.check`, CHECK_EXAMPLE, errors)
     const linted = stack.lint === undefined ? fragment.lint : validLint(stack.lint, `stacks.${pack}.lint`, errors)
+    const one = stack.test === undefined ? fragment.test : validTest(stack.test, `stacks.${pack}.test`, errors)
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -117,6 +119,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
       if (build?.length) check.push({ pack, root: trimRoot(root), run: build })
       const hook = typeof linted === 'function' ? linted(readIn(join(projectDir, root))) : linted
       if (hook?.length) lint.push({ pack, root: trimRoot(root), run: hook })
+      if (one) test.push({ pack, root: trimRoot(root), run: one })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -153,7 +156,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   }
   const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors, contextErrors)
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, lint, signOff, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, lint, test, signOff, tracker, domain, contextErrors } }
 }
 
 /** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */
@@ -205,6 +208,13 @@ function validSignOff(block = {}, engines, projectDir, errors, contextErrors) {
     for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) contextErrors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
   }
   return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs, diagrams }
+}
+
+/** [command] if it is a list of words with one holding `{test}`, the test to run, else null with an error under [label]. */
+function validTest(command, label, errors) {
+  if (isStrings(command) && command.some((word) => word.includes('{test}'))) return command
+  errors.push(`${label}: expected a command as a list of words, one holding {test}, such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'].`)
+  return null
 }
 
 const CHECK_EXAMPLE = "[['pnpm', 'lint'], ['pnpm', 'test']]"

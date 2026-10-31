@@ -6,15 +6,17 @@
  * whatever the roots. The formatter runs in the root, so the root's own Prettier and ESLint
  * configs apply; a project on another package manager or toolchain replaces it with its
  * stack's own `format`, and likewise `check`, the build and tests the sign-off and CI run in the
- * root, and `lint`, what the pre-commit hook runs when the root has staged files. `ci` gives the
- * GitHub Actions steps a CI job takes in the root before its `check`: pnpm as the root's
- * `packageManager` pins it, Node as its `.nvmrc` names it, and the install.
+ * root, `lint`, what the pre-commit hook runs when the root has staged files, and `test`, one
+ * named test, for the sign-off's red-proof recorder. `ci` gives the GitHub Actions steps a CI
+ * job takes in the root before its `check`: pnpm as the root's `packageManager` pins it, Node as
+ * its `.nvmrc` names it, and the install.
  */
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
 export default {
   detect: { files: ['nuxt.config.ts', 'nuxt.config.js', 'nuxt.config.mjs'] },
   lsp: ['typescript-lsp@claude-plugins-official'],
+  test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'],
   check: [
     ['pnpm', 'lint'],
     ['pnpm', 'typecheck'],
