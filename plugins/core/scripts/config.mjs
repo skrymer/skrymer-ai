@@ -62,6 +62,7 @@ export async function loadConfig(projectDir, pluginRoot) {
   const duplication = []
   const mutation = []
   const verify = []
+  const check = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
     if (!Array.isArray(roots)) {
@@ -80,6 +81,7 @@ export async function loadConfig(projectDir, pluginRoot) {
     prompts.push(...(fragment.skills?.prompts ?? []))
     const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
+    const build = stack.check === undefined ? fragment.check : validCommands(stack.check, `stacks.${pack}.check`, CHECK_EXAMPLE, errors)
     const groups = stack.format === undefined ? fragment.format : validFormat(stack.format, `stacks.${pack}.format`, errors)
     for (const root of roots) {
       if (!isDirectory(join(projectDir, root))) {
@@ -101,6 +103,7 @@ export async function loadConfig(projectDir, pluginRoot) {
         mutation.push({ ...engine, pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
       }
       if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
+      if (build?.length) check.push({ pack, root: trimRoot(root), run: build })
     }
   }
   const projectTdd = project.tdd?.files ?? []
@@ -135,8 +138,58 @@ export async function loadConfig(projectDir, pluginRoot) {
       if (!isDirectory(join(projectDir, context))) contextErrors.push(`domain.contexts: "${context}" does not exist in the project.`)
     }
   }
+  const signOff = validSignOff(project.signOff, { mutation, verify }, errors)
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, signOff, tracker, domain, contextErrors } }
+}
+
+/** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */
+export const GATES = ['simplify', 'mutation', 'code-review', 'check-adrs', 'verify']
+
+/** The gates that need an engine from an enabled pack, and run once per stack root that has one. */
+const ENGINE_GATES = ['mutation', 'verify']
+
+const SIGN_OFF_FIELDS = ['gates', 'docs']
+
+/**
+ * The sign-off a project selects, `{ gates, docs }`: the gates in core's order, and the globs of
+ * the project's other living docs, which check-adrs greps for drift. With no `gates`, every gate
+ * whose engine an enabled pack provides is selected; [engines] holds the merged mutation and
+ * verify stacks. An unknown gate, or an engine gate no enabled pack provides, is an error.
+ */
+function validSignOff(block = {}, engines, errors) {
+  const available = (gate) => !ENGINE_GATES.includes(gate) || engines[gate].length > 0
+  if (!isObject(block)) {
+    errors.push(`signOff: expected { ${SIGN_OFF_FIELDS.join(', ')} }.`)
+    return null
+  }
+  for (const field of Object.keys(block)) {
+    if (!SIGN_OFF_FIELDS.includes(field)) errors.push(`signOff: there is no field "${field}". Fields: ${SIGN_OFF_FIELDS.join(', ')}.`)
+  }
+  const { gates = GATES.filter(available), docs = [] } = block
+  if (!Array.isArray(gates) || !gates.every((gate) => typeof gate === 'string')) {
+    errors.push("signOff.gates: expected a list of gates, such as ['simplify', 'code-review'].")
+  } else {
+    for (const gate of gates) {
+      if (!GATES.includes(gate)) errors.push(`signOff.gates: there is no gate "${gate}". Gates: ${GATES.join(', ')}.`)
+      else if (!available(gate)) {
+        errors.push(`signOff.gates: no enabled pack provides a ${gate} engine. Enable a stack whose pack has one, or drop "${gate}" from the gates.`)
+      }
+    }
+  }
+  if (!Array.isArray(docs) || !docs.every((glob) => typeof glob === 'string' && glob)) {
+    errors.push("signOff.docs: expected a list of globs, such as ['docs/**/*.md'].")
+  }
+  return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs }
+}
+
+const CHECK_EXAMPLE = "[['pnpm', 'lint'], ['pnpm', 'test']]"
+
+/** [commands] if it is a non-empty list of commands, each a list of words, else null with an error under [label]. */
+function validCommands(commands, label, example, errors) {
+  if (Array.isArray(commands) && commands.length && commands.every((command) => isStrings(command))) return commands
+  errors.push(`${label}: expected a list of commands, each a list of words, such as ${example}.`)
+  return null
 }
 
 /** [groups] if each is `{ files: [globs], run: [[words]] }`, else null with an error under [label] per bad group. */
@@ -311,7 +364,7 @@ const isDirectory = (path) => existsSync(path) && statSync(path).isDirectory()
 const isPack = (dir) => existsSync(join(dir, PACK_FILE))
 
 /** A root as a project-relative directory: `api` for `./api/`, nothing for `.`. */
-const trimRoot = (root) => root.replace(/^\.\/+/, '').replace(/\/+$/, '').replace(/^\.$/, '')
+export const trimRoot = (root) => root.replace(/^\.\/+/, '').replace(/\/+$/, '').replace(/^\.$/, '')
 
 /** A root as the start of a project-relative path regex. */
 const rootPrefix = (root) => (trimRoot(root) ? `${escapeRegex(trimRoot(root))}/` : '')

@@ -3,11 +3,13 @@
  * stack root the project config names, so a project states only its roots. `/core:setup`
  * proposes a root wherever `detect` finds a Gradle build applying Spring Boot, and enables the
  * `lsp` plugins. A test command matches within one shell command. A prompt rule matches the
- * words of a prompt, whatever the roots.
+ * words of a prompt, whatever the roots. `check` is the build and tests the sign-off runs in
+ * the root before it spawns any agent; a stack's own `check` replaces it.
  */
 export default {
   detect: { files: ['build.gradle.kts', 'build.gradle'], contains: /org\.springframework\.boot/ },
   lsp: ['kotlin-lsp@claude-plugins-official'],
+  check: [['./gradlew', 'build']],
   tdd: {
     files: ['src/**/*.kt'],
     testCommands: [/\bgradlew\b[^;&|]*\b(?:test|check|build)\b/],
