@@ -166,7 +166,20 @@ test('a judging agent on a model of its own, or named apart from its file, is a 
   ])
 })
 
-test('every agent shipped in this repo is read-only, inherits the model and is named for its file', () => {
+test('the break-it tester is the one agent on a model of its own: Opus, and nothing else', () => {
+  // Given the break-it tester on Opus, and again on the session's model
+  const tester = (model) => ({ ...agent(`name: break-it-tester\ntools: Bash, Read, Grep, Glob\nmodel: ${model}`), path: 'plugins/core/agents/break-it-tester.md' })
+
+  // When each is checked
+  const onOpus = findAgentProblems([tester('opus')])
+  const inherited = findAgentProblems([tester('inherit')])
+
+  // Then Opus is no problem, and the session's model is
+  assert.deepEqual(onOpus, [])
+  assert.deepEqual(inherited, ['plugins/core/agents/break-it-tester.md: model "inherit" should be "opus"; exploring for what nobody asked about is where the strongest model earns its cost'])
+})
+
+test('every agent shipped in this repo is read-only, runs on its model and is named for its file', () => {
   // Given every agent definition under plugins/
   const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'plugins/*/agents/*.md'], { cwd: REPO, encoding: 'utf8' })
     .split('\n')
@@ -176,10 +189,10 @@ test('every agent shipped in this repo is read-only, inherits the model and is n
   // When they are checked
   const problems = findAgentProblems(files)
 
-  // Then core ships the sign-off's judging agents and none has a problem
+  // Then core ships the sign-off's agents and none has a problem
   assert.deepEqual(
     files.map(({ path }) => path.split('/').at(-1)).sort(),
-    ['acceptance-ledger.md', 'adversary.md', 'blind-arbiter.md', 'check-adrs.md', 'code-reviewer.md', 'resolutions.md', 'retro-miner.md', 'verdict-auditor.md']
+    ['acceptance-ledger.md', 'adversary.md', 'blind-arbiter.md', 'break-it-tester.md', 'check-adrs.md', 'code-reviewer.md', 'resolutions.md', 'retro-miner.md', 'verdict-auditor.md']
   )
   assert.deepEqual(problems, [])
 })

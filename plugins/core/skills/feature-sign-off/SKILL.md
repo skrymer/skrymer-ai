@@ -1,6 +1,6 @@
 ---
 name: feature-sign-off
-description: The sign-off a functionally complete change passes before it is committed and pushed. Runs the gates the project config selects (simplify, mutation, code-review, check-adrs, verify) in core's fixed order, with an adversary, an acceptance ledger, a resolutions pass and a retro in every run, each judgement in a fresh read-only agent. Fixes or justifies everything they find, then commits, pushes and routes the lessons. Use when a change is done and the user says "sign off", "ready to commit", "ready to push", "wrap up this feature", "run the gates", or before opening a PR.
+description: The sign-off a functionally complete change passes before it is committed and pushed. Runs the gates the project config selects (simplify, mutation, code-review, check-adrs, verify, with a break-it tester after the walk-through) in core's fixed order, with an adversary, an acceptance ledger, a resolutions pass and a retro in every run, each judgement in a fresh read-only agent. Fixes or justifies everything they find, then commits, pushes and routes the lessons. Use when a change is done and the user says "sign off", "ready to commit", "ready to push", "wrap up this feature", "run the gates", or before opening a PR.
 ---
 
 # Feature sign-off
@@ -78,7 +78,8 @@ Run only the selected ones, in this order. Act on what each surfaces before star
 
    **Acting on what the judging message returned:**
 
-   - **Straight to the user, stopping the sign-off:** an UNSOUND ledger row, an adversary attack
+   - **Straight to the user, stopping the sign-off:** an UNSOUND ledger row, a break-it charter
+     failure no AC defines (gate 5), an adversary attack
      the repo's recorded decisions can't answer, a check-adrs FAIL (offer both the code fix and
      the same-change doc amendment), and anything an agent marks as the user's call. Each is a
      product decision, and no agent owns it.
@@ -103,8 +104,14 @@ Run only the selected ones, in this order. Act on what each surfaces before star
    (for a web stack, `/web-e2e:verify`), once, last, on the code that ships, so nothing changes
    under it. **Its probe list starts with the ledger's**: every `MET (probe: …)` row is a value
    this pass owes, re-read against the code as it now ships. When the walk-through's results are
-   recorded, spawn the **verdict auditor** (`core:verdict-auditor`) with the results file and the
-   diff, and drive what it lists as UNCOVERED or WEAK. A FAIL goes back to the gate that owns the
+   recorded, run the same verify skill with `--explore <issue>`: it spawns the **break-it tester**
+   (`core:break-it-tester`) fresh, without the walk-through's results, to drive charters beyond
+   the ACs, and `check --explore` holds every charter to a row. Rule each charter `fail` one of
+   two ways. A bug in the diff is fixed red-first, like any finding. Behaviour no AC defines goes
+   to the user, stopping the sign-off, and their decision is written into the issue as an AC in
+   their words, the route an UNSOUND ledger row takes, before the sign-off continues. Then spawn
+   the **verdict auditor** (`core:verdict-auditor`) with the results file and the diff, and drive
+   what it lists as UNCOVERED or WEAK. A FAIL goes back to the gate that owns the
    fix, then here again. **If this gate changed code, the resolutions pass runs again** on what
    changed since it ran, each finding paired with its fix, before the commit.
 

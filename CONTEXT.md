@@ -28,5 +28,9 @@ What a mutation sweep leaves for triage: one line per mutant no test detected, `
 _Avoid_: copying survivors into a log by hand; a score in place of a verdict per line.
 
 **Verify results file**:
-What a verify walk-through (`/web-e2e:verify`) leaves for the AC coverage report: one row per acceptance criterion and target (a viewport on the web), `AC-<issue>.<n><TAB>target<TAB>status<TAB>screenshot<TAB>note`, with no header. The status is `pass`, `fail`, `blocked` or `not-visible`, and every status except `pass` carries a note. It lives in the repo's git dir under `skrymer-ai/verify/<issue>/`, beside the screenshots and the `head` the walk-through ran on.
+What a verify walk-through (`/web-e2e:verify`) leaves for the AC coverage report: one row per acceptance criterion and target (a viewport on the web), `AC-<issue>.<n><TAB>target<TAB>status<TAB>screenshot<TAB>note`, with no header. The status is `pass`, `fail`, `blocked` or `not-visible`, and every status except `pass` carries a note. An exploration adds a row per **charter** and target, keyed `EX-<issue>.<n>`, never `not-visible` and always with a note. It lives in the repo's git dir under `skrymer-ai/verify/<issue>/`, beside the screenshots, the registered charters and the `head` the walk-through ran on.
 _Avoid_: a prose verdict as the record; an AC with no row.
+
+**Charter**:
+One exploratory session's mission for the break-it tester, in the form *explore <area> with <attack> to discover <risk>*, derived from the diff rather than the acceptance criteria. Registered through the verify results script, and recorded as an `EX-` row whose note names the values driven.
+_Avoid_: a charter that restates an AC; a result that names no driven value.

@@ -10,7 +10,7 @@ A Claude Code plugin marketplace holding one AI-assisted development workflow, s
 | `kotlin-spring` | Kotlin / Spring Boot backend playbook, pitest, Detekt, Gradle conventions |
 | `react` | React playbook, component testing, Stryker, ESLint/Prettier |
 | `sindri` | Consumer guide for the Sindri component library (sourced from its own repo) |
-| `web-e2e` | Playwright best practices, MSW as the one way tests fake the API (with an ESLint preset refusing the alternatives), `/web-e2e:verify`, which walks an issue's acceptance criteria in a headless browser at each configured viewport and records a result per AC, and the default rules for e2e specs, tests and mock handlers |
+| `web-e2e` | Playwright best practices, MSW as the one way tests fake the API (with an ESLint preset refusing the alternatives), `/web-e2e:verify`, which walks an issue's acceptance criteria in a headless browser at each configured viewport and records a result per AC (with `--explore`, a break-it tester then drives charters beyond the ACs), and the default rules for e2e specs, tests and mock handlers |
 | `nuxt` | Nuxt / Vue playbook, component-testing conventions, Vitest paths, Prettier + ESLint formatter |
 
 ## Adopting it
@@ -84,7 +84,7 @@ Before any agent is spawned, each stack the branch touched runs its pack's `chec
 stacks: { nuxt: { roots: ['web'], check: [['npm', 'run', 'lint'], ['npm', 'test']] } }
 ```
 
-Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
+Every judgement in the run (the code review, check-adrs, the adversary, the ledger, the resolutions pass, a blind arbiter on a split, the verdict auditor, the retro miner) comes from a fresh read-only agent defined in `plugins/core/agents/`, never from a fork of the conversation. So does the break-it tester, which runs after the verify walk-through: it tries to break the change beyond its acceptance criteria through charters (*explore <area> with <attack> to discover <risk>*) it derives from the diff, without seeing the walk-through's results, and records each charter's result as an `EX-` row in the verify results file. It is the one agent on a model of its own, Opus ([ADR 0013](docs/adr/0013-core-orders-the-sign-off-and-fresh-read-only-agents-judge-it.md)).
 
 ## How the workflow runs
 
@@ -113,7 +113,9 @@ flowchart TD
   fixes --> resolutions["resolutions pass<br/>core:resolutions"]:::fixed
   resolutions -- "a row rejected" --> fixes
   resolutions --> verify["verify<br/>the stack's verify skill, per stack with an engine"]:::gate
-  verify --> auditor["verdict auditor<br/>core:verdict-auditor"]
+  verify --> tester["break-it tester<br/>core:break-it-tester, on Opus"]
+  tester -- "a failure no AC defines" --> user
+  tester --> auditor["verdict auditor<br/>core:verdict-auditor"]
   auditor -- "a fix after the resolutions pass" --> resolutions
   auditor --> push["check again, commit, push"]
   push --> retro["retro<br/>core:retro-miner"]:::fixed
