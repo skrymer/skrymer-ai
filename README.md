@@ -75,8 +75,10 @@ A new test is refused while the branch holds duplicated source code it added, so
 `/core:feature-sign-off` runs once a change is functionally complete, before it is pushed. `signOff.gates` selects which gates run, and core runs them in its own order whatever order they are listed in: `simplify`, `mutation`, `code-review`, `check-adrs`, `verify`. `mutation` and `verify` need an engine: each runs once per stack root whose pack provides one (`kotlin-spring` and `nuxt` bring a mutation engine, `web-e2e` brings verify), and selecting one with no such pack is a config error. Without `signOff.gates`, every gate whose engine is available runs. The adversary, the acceptance ledger, the resolutions pass and the retro run in every sign-off and can't be deselected. `signOff.docs` lists globs of the project's other living docs, which the check-adrs gate greps for drift beside `CLAUDE.md`, `README.md`, `docs/` and the glossaries in scope:
 
 ```js
-signOff: { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['handbook/**/*.md'] }
+signOff: { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['handbook/**/*.md'], diagrams: ['docs/ARCHITECTURE.md'] }
 ```
+
+`signOff.diagrams` names the docs whose Mermaid diagrams should still draw the code. Each must exist. When it names any, the **diagram auditor** joins the judging message and returns one row per diagram, CURRENT or STALE, and a MISSING tail for what the change added that no diagram draws. STALE and MISSING rows go through fix-or-justify, and a fixed diagram must pass the render check (`mermaid-check.mjs`), which renders each block through mermaid-cli and names any that doesn't render by its heading.
 
 Before any agent is spawned, each stack the branch touched runs its pack's `check` commands in its root: the full build and tests (`kotlin-spring`: `./gradlew build`; `nuxt`: `pnpm lint`, `pnpm typecheck`, `pnpm test`). A failure stops the sign-off. A stack replaces its pack's commands with its own:
 
@@ -104,6 +106,7 @@ flowchart TD
     adrs["check-adrs<br/>core:check-adrs"]:::gate
     adversary["adversary<br/>core:adversary"]:::fixed
     ledger["acceptance ledger<br/>core:acceptance-ledger"]:::fixed
+    diagrams["diagram auditor<br/>core:diagram-auditor, when signOff.diagrams names a doc"]
   end
   judging -- "UNSOUND row, unanswerable attack, FAIL" --> user(["the user decides"])
   judging -- "two agents split" --> arbiter["blind arbiter<br/>core:blind-arbiter"]
@@ -131,4 +134,4 @@ flowchart TD
 sudo apparmor_parser -r scripts/evals/apparmor-profile
 ```
 
-A diagram is checked by rendering it, not by GitHub parsing it, with mermaid-cli at a pinned version. Extract the `mermaid` block to `block.mmd`, then run `npx -y @mermaid-js/mermaid-cli@11.17.0 -p pup.json -i block.mmd -o block.png`, where `pup.json` points Puppeteer at a local Chromium: `{"executablePath": "<path to chrome>", "args": ["--no-sandbox"]}`.
+A diagram is checked by rendering it, not by GitHub parsing it. `npm run check` renders every Mermaid block in this README through `plugins/core/scripts/mermaid-check.mjs`, which runs mermaid-cli at a pinned version through `npx`, and so needs a Chromium for Puppeteer. If Puppeteer can't start its own, set `SKRYMER_AI_PUPPETEER_CONFIG` to a Puppeteer config file that points at a local one, such as `{"executablePath": "<path to chrome>"}`. CI writes one that turns Chromium's sandbox off, since Ubuntu's runners restrict the user namespaces it needs.
