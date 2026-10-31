@@ -1,18 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { gitProject as fixture, git, runScript } from './git-fixture.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'mutation.mjs')
-
-/** Git without the developer's own config, so a global signing key or hook can't reach the fixtures. */
-const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
-
-const git = (cwd, ...args) =>
-  execFileSync('git', ['-c', 'user.email=dev@acme.test', '-c', 'user.name=dev', ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...GIT_ENV } }).trim()
 
 /**
  * A stand-in engine: run in the stack root, it records the arguments it was given, then copies
@@ -55,44 +48,12 @@ const BASE = {
 
 const IGNORE = '.gitignore'
 
-/**
- * A temp project in a git repo whose `origin` has [base] on `main`, checked out on a feature
- * branch with [branch] written on top and left uncommitted. A `null` in [branch] deletes the file.
- */
-function gitProject(branch = {}, base = BASE) {
-  const dir = mkdtempSync(join(tmpdir(), 'mutation-project-'))
-  const write = (files) => {
-    for (const [file, content] of Object.entries(files)) {
-      if (content === null) {
-        rmSync(join(dir, file))
-        continue
-      }
-      mkdirSync(dirname(join(dir, file)), { recursive: true })
-      writeFileSync(join(dir, file), content)
-    }
-  }
-  write({ ...base, [IGNORE]: 'engine-args.json\nout/\nengine-report\n' })
-  const origin = mkdtempSync(join(tmpdir(), 'mutation-origin-'))
-  git(origin, 'init', '-q', '--bare', '-b', 'main')
-  git(dir, 'init', '-q', '-b', 'main')
-  git(dir, 'add', '-A')
-  git(dir, 'commit', '-qm', 'base')
-  git(dir, 'remote', 'add', 'origin', origin)
-  git(dir, 'push', '-q', 'origin', 'main')
-  git(dir, 'remote', 'set-head', 'origin', 'main')
-  git(dir, 'switch', '-qc', 'feature')
-  write(branch)
-  return dir
-}
+/** A project from [base] on a feature branch with [branch] uncommitted on top, ignoring what the stand-in engine leaves. */
+const gitProject = (branch = {}, base = BASE) => fixture({ ...base, [IGNORE]: 'engine-args.json\nout/\nengine-report\n' }, branch)
 
 /** Runs the sweep script in [dir] with [args], without a memory cap so the result is the same on any machine. */
 function sweep(dir, ...args) {
-  const result = spawnSync('node', [SCRIPT, ...args], {
-    cwd: dir,
-    encoding: 'utf8',
-    env: { ...process.env, ...GIT_ENV, SKRYMER_AI_MUTATION_CAP: 'off' },
-  })
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr, out: result.stdout + result.stderr }
+  return runScript(SCRIPT, dir, args, { SKRYMER_AI_MUTATION_CAP: 'off' })
 }
 
 const outFile = (dir, name) => join(dir, '.git', 'skrymer-ai', 'mutation', name)
