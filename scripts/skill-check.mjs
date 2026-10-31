@@ -31,9 +31,17 @@ export function findSkillProblems(files) {
 const WRITING_TOOLS = ['Edit', 'Write', 'NotebookEdit']
 
 /**
- * Every agent a plugin ships judges, so it is read-only: it lists its tools, none of which
- * writes, and sets no `memory`, which turns writing on. It runs on the session's own model,
- * since a judge's neutrality comes from its fresh context. Its `name` matches its file.
+ * The agents on a model of their own, each with why. Every other runs on the session's model,
+ * since a judge's neutrality comes from its fresh context, not a different model.
+ */
+const MODELS = {
+  'break-it-tester': ['opus', 'exploring for what nobody asked about is where the strongest model earns its cost'],
+}
+
+/**
+ * Every agent a plugin ships judges or breaks things and reports them, so it is read-only: it
+ * lists its tools, none of which writes, and sets no `memory`, which turns writing on. It runs on
+ * the session's own model unless MODELS names another. Its `name` matches its file.
  */
 export function findAgentProblems(files) {
   return files.flatMap(({ path, content }) => {
@@ -46,7 +54,8 @@ export function findAgentProblems(files) {
     if (!tools) problems.push(`${path}: no tools list, so it inherits Edit and Write; list its tools`)
     for (const tool of tools?.filter((tool) => WRITING_TOOLS.includes(tool)) ?? []) problems.push(`${path}: tools include ${tool}; a judging agent is read-only`)
     if (field('memory')) problems.push(`${path}: memory turns on Write and Edit; a judging agent is read-only`)
-    if (field('model') !== 'inherit') problems.push(`${path}: model "${field('model')}" should be "inherit"; neutrality comes from a fresh context, not a different model`)
+    const [model, why] = MODELS[file] ?? ['inherit', 'neutrality comes from a fresh context, not a different model']
+    if (field('model') !== model) problems.push(`${path}: model "${field('model')}" should be "${model}"; ${why}`)
     return problems
   })
 }

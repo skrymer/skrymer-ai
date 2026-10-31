@@ -14,15 +14,21 @@
  *       beside the results, and anything but a pass needs a note. A not-visible AC has `-` for
  *       its target and screenshot. A row replaces the AC's earlier row at that target, and a
  *       not-visible row and a walked one replace each other.
- *   node verify-result.mjs check <issue>
+ *   node verify-result.mjs charter <issue> "explore <area> with <attack> to discover <risk>"
+ *       registers an exploratory charter, which the break-it tester derives from the diff, and
+ *       prints its key, `EX-<issue>.<n>`. A charter's row is recorded like an AC's, at the target
+ *       it was driven at, with a screenshot as an AC's is, never not-visible, and always with a
+ *       note naming what was tried.
+ *   node verify-result.mjs check <issue> [--explore]
  *       reads the issue's ACs through gh and fails unless every one has a row at every target
- *       the config names, or a not-visible row, all on the code head stamped.
+ *       the config names, or a not-visible row, all on the code head stamped. With --explore it
+ *       also fails unless at least one charter was registered and each has a row.
  *
  * The rows, screenshots and head sit in the repo's git dir under `skrymer-ai/verify/<issue>/`.
  */
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
@@ -33,17 +39,20 @@ import { git, runAsScript, Stop, verifyConfig, verifyDir } from './verify-common
 const SCRIPT = fileURLToPath(import.meta.url)
 const STATUSES = ['pass', 'fail', 'blocked', 'not-visible']
 const RESULTS = 'results.tsv'
+const CHARTERS = 'charters.tsv'
+const CHARTER_FORM = /^explore\s+\S.*\swith\s+\S.*\sto discover\s+\S.*$/i
 const HEAD = 'head'
 
 async function main(argv, projectDir) {
-  const { positionals, values } = parseArgs({ args: argv, allowPositionals: true, options: { screenshot: { type: 'string' }, note: { type: 'string' } } })
+  const { positionals, values } = parseArgs({ args: argv, allowPositionals: true, options: { screenshot: { type: 'string' }, note: { type: 'string' }, explore: { type: 'boolean' } } })
   const [command, ...args] = positionals
   const config = await verifyConfig(projectDir)
   const targets = [...new Set(config.verify.flatMap((stack) => Object.keys(stack.targets)))]
   if (command === 'head' && args.length === 1) return head(projectDir, issueOf(args[0]))
+  if (command === 'charter' && args.length === 2) return charter(projectDir, issueOf(args[0]), args[1])
   if (command === 'record' && args.length === 3) return record(projectDir, targets, args, values)
-  if (command === 'check' && args.length === 1) return check(projectDir, targets, issueOf(args[0]), config.tracker)
-  throw new Stop('usage: verify-result.mjs head <issue> | record <AC> <target> <status> [--screenshot <file>] [--note <text>] | check <issue>')
+  if (command === 'check' && args.length === 1) return check(projectDir, targets, issueOf(args[0]), config.tracker, values)
+  throw new Stop('usage: verify-result.mjs head <issue> | charter <issue> <charter> | record <AC|EX> <target> <status> [--screenshot <file>] [--note <text>] | check <issue> [--explore]')
 }
 
 function issueOf(arg) {
@@ -97,11 +106,27 @@ function requireHead(projectDir, dir, issue) {
   }
 }
 
+function charter(projectDir, issue, text) {
+  if (!CHARTER_FORM.test(text) || /[\t\r\n]/.test(text)) throw new Stop('a charter reads "explore <area> with <attack> to discover <risk>", on one line.')
+  const dir = verifyDir(projectDir, issue)
+  requireHead(projectDir, dir, issue)
+  const key = `EX-${issue}.${chartersOf(dir).length + 1}`
+  appendFileSync(join(dir, CHARTERS), `${key}\t${text.trim()}\n`)
+  process.stdout.write(`${key}  ${text.trim()}\n`)
+}
+
 function record(projectDir, targets, [ac, target, status], { screenshot, note = '' }) {
-  const issue = /^AC-(\d+)\.[1-9]\d*$/.exec(ac)?.[1]
-  if (!issue) throw new Stop(`"${ac}" is not an AC key such as AC-8.1.`)
+  const [, kind, issue] = /^(AC|EX)-(\d+)\.[1-9]\d*$/.exec(ac) ?? []
+  if (!issue) throw new Stop(`"${ac}" is not an AC key such as AC-8.1, or a charter key such as EX-8.1.`)
   if (!STATUSES.includes(status)) throw new Stop(`"${status}" is not a status. Statuses: ${STATUSES.join(', ')}.`)
   if (/[\t\r\n]/.test(note)) throw new Stop('a note is one line without tabs.')
+  if (kind === 'EX') {
+    if (status === 'not-visible') throw new Stop('a charter is driven at a target, so it is never not-visible.')
+    if (!note.trim()) throw new Stop('a charter row needs a --note naming what was tried, the values included.')
+    if (!chartersOf(verifyDir(projectDir, issue)).some((c) => c.key === ac)) {
+      throw new Stop(`there is no charter ${ac} for issue ${issue}. Register it first: charter ${issue} "explore <area> with <attack> to discover <risk>".`)
+    }
+  }
   if (status !== 'pass' && !note.trim()) throw new Stop(`a ${status} needs a --note saying why.`)
   if (status === 'not-visible') {
     if (target !== '-') throw new Stop('a not-visible AC has - for its target: it is not walked at any.')
@@ -126,12 +151,13 @@ function record(projectDir, targets, [ac, target, status], { screenshot, note = 
   process.stdout.write(`recorded ${ac} ${target} ${status}\n`)
 }
 
-function check(projectDir, targets, issue, tracker) {
+function check(projectDir, targets, issue, tracker, { explore }) {
   if (tracker.kind !== 'github') throw new Stop(`check reads an issue's ACs through gh, and this project's tracker is ${tracker.kind}.`)
   const acs = acsOf(issue, projectDir)
   const dir = verifyDir(projectDir, issue)
   requireHead(projectDir, dir, issue)
-  const rows = rowsOf(dir)
+  const all = rowsOf(dir)
+  const rows = all.filter((row) => row.ac.startsWith('AC-'))
   const lines = []
   let missing = 0
   acs.forEach((_, i) => {
@@ -156,8 +182,39 @@ function check(projectDir, targets, issue, tracker) {
   if (missing) lines.push(`INCOMPLETE: ${missing} of ${count(acs.length, 'AC')} lack a result.`)
   if (strays.length) lines.push('rows that match no AC and target:', ...strays.map((stray) => `  ${stray}`))
   if (!missing && !strays.length) lines.push(`${count(acs.length, 'AC')}, every one with a result.`)
+  const unexplored = explore ? checkCharters(issue, chartersOf(dir), all, lines) : false
   process.stdout.write(`${lines.join('\n')}\n`)
-  if (missing || strays.length) process.exitCode = 1
+  if (missing || strays.length || unexplored) process.exitCode = 1
+}
+
+/** Adds a line per charter to [lines], and whether the exploration falls short: no charter at all, or one with no row. */
+function checkCharters(issue, charters, rows, lines) {
+  if (!charters.length) {
+    lines.push(`INCOMPLETE: no charter was explored. Each is registered with charter ${issue} "<charter>" and driven to a row.`)
+    return true
+  }
+  let missing = 0
+  for (const { key, text } of charters) {
+    const mine = rows.filter((row) => row.ac === key)
+    if (!mine.length) missing++
+    const results = mine.length ? mine.map((row) => `${row.target} ${row.status}: ${row.note}`).join(', ') : 'MISSING'
+    lines.push(`${key}  ${text}: ${results}`)
+  }
+  const verb = missing === 1 ? 'lacks' : 'lack'
+  lines.push(missing ? `INCOMPLETE: ${missing} of ${count(charters.length, 'charter')} ${verb} a result.` : `${count(charters.length, 'charter')}, every one with a result.`)
+  return missing > 0
+}
+
+/** The charters registered in [dir], each `{ key, text }`, in order. */
+function chartersOf(dir) {
+  if (!existsSync(join(dir, CHARTERS))) return []
+  return readFileSync(join(dir, CHARTERS), 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [key, text] = line.split('\t')
+      return { key, text }
+    })
 }
 
 /**

@@ -8,6 +8,12 @@ The **verify results file** has one row per AC and target, `AC<TAB>target<TAB>st
 
 The file, its screenshots and a `head` file sit in the repo's git dir under `skrymer-ai/verify/<issue>/`, which keeps them out of commits and separate for each worktree, as with the survivors file ([0010](0010-the-mutation-sweep-is-a-script-and-its-survivors-file-is-the-contract.md)). `head` holds the commit and a hash of the uncommitted diff the walk-through ran on. The walk-through has to run on the code that ships, because review and simplification change behaviour, so the coverage report rejects results whose `head` doesn't match the branch it is checking. For the same reason `record` refuses a row once the code has changed since `head` was stamped, and stamping `head` again on changed code drops the rows walked on the old code, so every row in the file stands for one state of the code.
 
+## Amendment: charter rows
+
+The break-it tester, which explores a change beyond its acceptance criteria after the walk-through, records through the same script, so a charter it chose and then left out is caught the same way as an AC. `charter <issue> "<charter>"` registers each charter, in the form *explore <area> with <attack> to discover <risk>*, and prints its key, `EX-<issue>.<n>`, in the order registered. The charters sit in `charters.tsv` beside the results, and re-stamping `head` drops them with the rows. A charter's row has the same five columns as an AC's: it is driven at a target and recorded `pass`, `fail` or `blocked`, never `not-visible`, and its note is required even on a pass, since the note names the values the tester drove. A charter is driven in the browser as an AC is, through `playwright-cli` ([0012](0012-verify-drives-its-own-headless-browser-through-playwright-cli.md)), so its `pass` or `fail` needs a screenshot too. A charter with no driven value is not a charter. `check <issue> --explore` adds the charters to the check, and fails on a charter with no row and on an exploration that registered none. A plain `check` is unchanged, so a walk-through on its own needs no charters.
+
+The charters are registered rather than read from the rows because a charter with no row has to be visible to `check`. A key per charter, rather than the charter's text, lets a row be re-recorded after a fix without retyping the charter.
+
 ## Considered options
 
 - **A Markdown verdict, as the walk-through's prose report.** It is easy for a reviewer to read but hard to parse reliably, and it can't show an AC that is missing.

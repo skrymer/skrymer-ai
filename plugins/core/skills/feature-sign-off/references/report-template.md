@@ -18,6 +18,8 @@ check-adrs     ⚠️ 1 FAIL → CONTEXT.md amended (the user's call); drift fix
 resolutions    ⚠️ 9 rows: 8 upheld, 1 dismissal rejected ("pre-existing": the diff moved the line) → fixed
                pack faithful to 5 transcripts; briefs clean
 verify         ✅ desktop + phone: qty 0 ✅ · qty 999 ✅ · AC-3 probe "Ünïcode name" ✅
+  break-it     ⚠️ 4 charters: 3 pass · EX-12.2 fail (double-click on Place order: 2 orders) → fixed red-first
+               EX-12.4 fail (cart edited in two tabs: last save wins silently) → the user's call, now AC-7
   verdict      ⚠️ 1 UNCOVERED (empty cart) → driven ✅
 resolutions′   not re-run (verify changed no code)
 
