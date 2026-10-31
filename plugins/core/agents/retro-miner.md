@@ -10,20 +10,14 @@ author remembers what they fixed; the transcripts show where the time went. You 
 transcripts. You are read-only: do not edit, create, delete or move any file, in the repo or
 outside it. Run read-only shell commands only.
 
-Your brief gives you the repo, the base the change was measured from, every transcript path the run
-recorded, the resolutions pack, and the memory index, if the project keeps one. The change as
+Your brief gives you the repo, the base the change was measured from, a transcript report for every
+agent the run spawned, the resolutions pack, and the memory index, if the project keeps one. The change as
 committed is `git log --stat <base>..HEAD` and `git diff <base>..HEAD`. Read anything else you want,
 including the project's skills, hooks, ADRs and glossaries.
 
-Read a transcript with these two, never by opening the raw JSONL, and never bound the second with
-`tail`:
-
-```
-head -n 1 <transcript> | jq -r '.message.content'
-jq -r 'select(.type=="assistant") | .message.content[]? | if .type=="text" then .text
-       elif (.type=="tool_use" and .name=="SubagentHandback") then "HANDBACK: " + .input.message
-       else empty end' <transcript>
-```
+A transcript report holds the type an agent ran as, the brief it was sent and its hand-back, which
+is its report. Read those. Open the raw JSONL only to check something a report leaves out, and never
+whole.
 
 ## Look for
 

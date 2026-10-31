@@ -1,91 +1,40 @@
 # Briefs
 
 Each judging agent's contract (its angles, rules of evidence and report shape) lives in its core
-definition, so a brief carries only what changes per run. Fill every slot. Leave a slot "none"
-rather than dropping it, and add nothing the contract in [SKILL.md](../SKILL.md) forbids. A brief
-that departs from these slots says so, and why, in the pack.
-
-Every brief opens with the same three slots:
-
-```
-Repo: <absolute path> (<a git worktree | the main checkout>; stay in it).
-The change: cd <path> && git fetch -q origin && git diff <base> <commit>
-What it does: <one or two sentences in the code's own terms; description, never assessment>
-```
-
-## code-reviewer
+definition, so a brief carries only what changes per run. Its template, `briefs/<agent>.txt`
+beside this skill, is only those slots. The renderer fills it, and the resolutions pass checks
+each sent brief against the rendered one by exact diff, so a brief is sent as printed or not at
+all:
 
 ```
-<the three opening slots>
-Base: <base sha>. Commit: <commit sha>.
-Start with: <the files the diff touches that matter most>. Read anything else you want.
+node <scripts>/brief.mjs <agent> [--label <name>] [--commit <sha>] --slot <name>=<value> …
 ```
 
-## check-adrs
+It prints the brief and saves it in the repo's git dir under `skrymer-ai/sign-off/briefs/`. A
+re-run of an agent takes a `--label` (`--label 2`), and so does its transcript check. `--commit`
+defaults to HEAD, which is the commit the judging message points at once you've committed.
 
-```
-<the three opening slots>
-Scope, as the scope script printed it:
-<adr-scope.mjs output, whole>
-The issue: gh issue view <n> --comments | <the local issue file> | none
-```
+The renderer fills from the branch: the repo, whether it is a worktree, the base, the commit, and
+the gate's diff, saved without lockfiles. Fill every other slot. A slot with nothing to say takes
+"none", and one left out stops the render. `@<file>` reads a value from a file, for output too
+long to quote, such as the scope script's.
 
-## adversary
+| Slot | What it holds |
+| --- | --- |
+| `what` | What the change does, in one or two sentences in the code's own terms: description, never assessment |
+| `issue` | How to read the issue: `gh issue view <n> --comments`, the local issue file, or none. Several issues take one line each |
+| `parent` | The parent issue, read the same way, or none |
+| `files` | The files that matter most, or that other agents already read, to start from |
+| `scope` | `adr-scope.mjs`'s output, whole (check-adrs) |
+| `pack` | The resolutions pack's path |
+| `transcripts` | One transcript report per agent the run spawned (`transcript.mjs <transcript>`, saved), each with its agent |
+| `runs` | Each saved run the pack cites, with the HEAD and `git status` it was stamped with, or none |
+| `scratch` | `you may copy the repo into <dir> and run tests there`, or `not allowed` |
+| `question`, `position1`, `position2` | The blind arbiter's one question, and each position with the evidence its agent cited, quoted from its transcript |
+| `results`, `head` | The verify results file and the commit its head file names (verdict auditor) |
+| `probes` | Each `MET (probe: …)` row the acceptance ledger returned, quoted, or none |
+| `memory` | The memory index's path, or none (retro miner) |
 
-```
-<the three opening slots>
-The issue it claims to deliver: gh issue view <n> --comments | <the local issue file> | none
-Its parent, where it has one: gh issue view <parent> --comments | none
-Already read by other agents, so start here: <files>. Read anything else you want.
-```
-
-## acceptance-ledger
-
-```
-<the three opening slots>
-The issue it claims to deliver: gh issue view <n> | <the local issue file> | none
-(several issues: one line each)
-Already read by other agents, so start here: <files>. Read anything else you want.
-```
-
-## resolutions
-
-```
-<the three opening slots, with <commit> the commit as it ships>
-The resolutions pack: <path>
-Transcripts: <every transcript path the run recorded, one per line, each with its agent>
-Saved runs the pack cites: <path, with the HEAD and git status it was stamped with> | none
-Scratch copy: you may copy the repo into <scratch dir> and run tests there | not allowed
-```
-
-## blind-arbiter
-
-No diff, by design: the working tree is not evidence for either position.
-
-```
-Repo: <absolute path> (<a git worktree | the main checkout>; stay in it).
-The question: <one question, phrased so both positions answer it>
-Position 1: <the position and the evidence its agent cited, quoted from its transcript>
-Position 2: <likewise>
-```
-
-A position carries what its agent cited, never your resolution row, and never a "for example"
-that is one position's framing.
-
-## verdict-auditor
-
-```
-<the three opening slots>
-The verify results file: <path>, stamped at <the head file's commit>
-Probe values the acceptance ledger named: <each MET (probe: …) row, quoted> | none
-```
-
-## retro-miner
-
-```
-Repo: <absolute path> (<a git worktree | the main checkout>; stay in it).
-Base: <base sha>. The change as committed: git log --stat <base>..HEAD and git diff <base>..HEAD
-Transcripts: <every transcript path the run recorded, one per line, each with its agent>
-The resolutions pack: <path>
-Memory index: <path to MEMORY.md> | none
-```
+The blind arbiter's brief has no diff, by design: the working tree is not evidence for either
+position. A position carries what its agent cited, never your resolution row, and never a "for
+example" that is one position's framing.

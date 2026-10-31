@@ -1,0 +1,4 @@
+Repo: {repo} ({checkout}; stay in it).
+The question: {question}
+Position 1: {position1}
+Position 2: {position2}

@@ -1,0 +1,3 @@
+Repo: {repo} ({checkout}; stay in it).
+The change: git diff {base} {commit}, saved without lockfiles at {diff}
+What it does: {what}

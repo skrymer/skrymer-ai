@@ -16,24 +16,19 @@ directory, you may run tests there, and nowhere else.
 
 Your brief gives you the repo, the commit as it ships and the one command that shows the change,
 the resolutions pack (one row per finding and remedy: `| id | agent | finding | remedy | resolution
-|`), the transcript path of every agent the run spawned, and the paths of saved runs the pack cites
-as controls. Every dismissal in the pack is a claim to check, not a premise.
+|`), a transcript report for every agent the run spawned, and the paths of saved runs the pack
+cites as controls. Every dismissal in the pack is a claim to check, not a premise.
 
 ## Reading a transcript
 
-A transcript is JSONL and can run to megabytes. Never open it whole. Read the brief an agent was
-sent and what it reported with these two, and never bound the second with `tail`, since an agent's
-verdict often comes first:
+Each agent's transcript comes to you as a transcript report, one file per agent: the type it ran
+as, the brief it was sent, and its hand-back, which is its report. Read those. The raw transcript
+is JSONL and can run to megabytes, so open it only to check something a report leaves out, and
+never whole.
 
-```
-head -n 1 <transcript> | jq -r '.message.content'
-jq -r 'select(.type=="assistant") | .message.content[]? | if .type=="text" then .text
-       elif (.type=="tool_use" and .name=="SubagentHandback") then "HANDBACK: " + .input.message
-       else empty end' <transcript>
-```
-
-An agent's full report is usually in its `SubagentHandback` call; its text blocks may hold only a
-closing line.
+Each brief has already been checked by script against the template rendered for its agent, and
+each agent against its definition, so a run that reaches you passed both. What a script can't
+check is what the per-run slots say: that is yours.
 
 ## The questions
 
@@ -51,8 +46,8 @@ closing line.
    that the edit no longer does.
 4. **Is the pack faithful to the transcripts?** Look for findings softened, merged into another, or
    dropped on the way in, every finding including a "harmless" nit, and for a figure that is not
-   the saved output's own summary line. Check each sent brief: it describes and never defends, it
-   names no instance of what to look for, and it carries no other agent's conclusion. Check for
+   the saved output's own summary line. Check each sent brief's slot values: they describe and never
+   defend, name no instance of what to look for, and carry no other agent's conclusion. Check for
    absence: the adversary and the acceptance ledger have transcripts in every sign-off (a SKIPPED
    ledger is a transcript), and so does the blind arbiter wherever two agents split on one question.
 

@@ -1,0 +1,3 @@
+{opening}
+The issue it claims to deliver: {issue}
+Already read by other agents, so start here: {files}. Read anything else you want.
