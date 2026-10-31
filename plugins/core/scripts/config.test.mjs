@@ -642,7 +642,7 @@ test('an unknown sign-off gate is an error listing the gates there are', async (
 
   // Then the error names the gate and lists the valid ones
   assert.deepEqual(result, {
-    errors: ['signOff.gates: there is no gate "lint". Gates: simplify, mutation, code-review, check-adrs, verify.'],
+    errors: ['signOff.gates: there is no gate "lint". Gates: simplify, mutation, code-review, security, check-adrs, language, verify.'],
   })
 })
 

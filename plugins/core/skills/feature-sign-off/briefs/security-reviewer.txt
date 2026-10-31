@@ -1,0 +1,3 @@
+{opening}
+Base: {base}. Commit: {commit}.
+Start with: {files}. Read anything else you want.

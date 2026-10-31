@@ -72,7 +72,7 @@ A new test is refused while the branch holds duplicated source code it added, so
 
 ### Sign-off
 
-`/core:feature-sign-off` runs once a change is functionally complete, before it is pushed. `signOff.gates` selects which gates run, and core runs them in its own order whatever order they are listed in: `simplify`, `mutation`, `code-review`, `check-adrs`, `verify`. `mutation` and `verify` need an engine: each runs once per stack root whose pack provides one (`kotlin-spring` and `nuxt` bring a mutation engine, `web-e2e` brings verify), and selecting one with no such pack is a config error. Without `signOff.gates`, every gate whose engine is available runs. The adversary, the acceptance ledger, the resolutions pass and the retro run in every sign-off and can't be deselected. `signOff.docs` lists globs of the project's other living docs, which the check-adrs gate greps for drift beside `CLAUDE.md`, `README.md`, `docs/` and the glossaries in scope:
+`/core:feature-sign-off` runs once a change is functionally complete, before it is pushed. `signOff.gates` selects which gates run, and core runs them in its own order whatever order they are listed in: `simplify`, `mutation`, `code-review`, `security`, `check-adrs`, `language`, `verify`. `mutation` and `verify` need an engine: each runs once per stack root whose pack provides one (`kotlin-spring` and `nuxt` bring a mutation engine, `web-e2e` brings verify), and selecting one with no such pack is a config error. Without `signOff.gates`, every gate whose engine is available runs, apart from `security` and `language`, which run only when listed. `security` sends the diff to a read-only security reviewer that runs Claude Code's security review, and its findings are advisory. `language` runs `language.mjs`, which sets each type the branch declares, and each term the PRD puts in bold, against the glossary of the context it lands in, and a read-only language judge rules each mismatch a missing term or a misnamed concept. The adversary, the acceptance ledger, the resolutions pass and the retro run in every sign-off and can't be deselected. `signOff.docs` lists globs of the project's other living docs, which the check-adrs gate greps for drift beside `CLAUDE.md`, `README.md`, `docs/` and the glossaries in scope:
 
 ```js
 signOff: { gates: ['simplify', 'code-review', 'check-adrs'], docs: ['handbook/**/*.md'], diagrams: ['docs/ARCHITECTURE.md'] }
@@ -103,7 +103,9 @@ flowchart TD
   mutation --> judging
   subgraph judging ["the judging message, on one commit"]
     review["code-review<br/>core:code-reviewer"]:::gate
+    security["security<br/>core:security-reviewer"]:::gate
     adrs["check-adrs<br/>core:check-adrs"]:::gate
+    language["language<br/>language.mjs, then core:language-judge"]:::gate
     adversary["adversary<br/>core:adversary"]:::fixed
     ledger["acceptance ledger<br/>core:acceptance-ledger"]:::fixed
     diagrams["diagram auditor<br/>core:diagram-auditor, when signOff.diagrams names a doc"]

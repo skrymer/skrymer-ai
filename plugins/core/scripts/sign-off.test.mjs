@@ -42,7 +42,7 @@ test('the plan lists the gates a config selects in core’s order, whatever orde
   assert.equal(status, 0, out)
   const gates = [...out.matchAll(/^ {2}\d\. (\S+)/gm)].map((match) => match[1])
   assert.deepEqual(gates, ['simplify', 'check-adrs', 'verify'])
-  assert.match(out, /^ {2}not selected: mutation, code-review$/m)
+  assert.match(out, /^ {2}not selected: mutation, code-review, security, language$/m)
 })
 
 test('the plan names the fixed core, which runs whatever gates are selected', () => {
@@ -136,7 +136,7 @@ test('a config with errors stops the plan, naming each error', () => {
 
   // Then it stops with the config's error naming the valid gates
   assert.equal(status, 1)
-  assert.match(out, /^ {2}signOff\.gates: there is no gate "lint"\. Gates: simplify, mutation, code-review, check-adrs, verify\.$/m)
+  assert.match(out, /^ {2}signOff\.gates: there is no gate "lint"\. Gates: simplify, mutation, code-review, security, check-adrs, language, verify\.$/m)
 })
 
 test('an engine gate no enabled pack provides stops the plan, naming the fix', () => {

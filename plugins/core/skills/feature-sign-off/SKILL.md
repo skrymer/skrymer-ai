@@ -1,6 +1,6 @@
 ---
 name: feature-sign-off
-description: The sign-off a functionally complete change passes before it is committed and pushed. Runs the gates the project config selects (simplify, mutation, code-review, check-adrs, verify) in core's fixed order, with an adversary, an acceptance ledger, a resolutions pass and a retro in every run, each judgement in a fresh read-only agent. Fixes or justifies everything they find, then commits, pushes and routes the lessons. Use when a change is done and the user says "sign off", "ready to commit", "ready to push", "wrap up this feature", "run the gates", or before opening a PR.
+description: The sign-off a functionally complete change passes before it is committed and pushed. Runs the gates the project config selects (simplify, mutation, code-review, security, check-adrs, language, verify) in core's fixed order, with an adversary, an acceptance ledger, a resolutions pass and a retro in every run, each judgement in a fresh read-only agent. Fixes or justifies everything they find, then commits, pushes and routes the lessons. Use when a change is done and the user says "sign off", "ready to commit", "ready to push", "wrap up this feature", "run the gates", or before opening a PR.
 ---
 
 # Feature sign-off
@@ -65,12 +65,19 @@ Run only the selected ones, in this order. Act on what each surfaces before star
    after simplify, and because the tests it adds are reviewed next. Commit the new tests after
    `sign-off.mjs check` passes.
 
-3. **code-review and check-adrs, in the judging message.** Commit, then launch in **one
+3. **code-review, security, check-adrs and language, in the judging message.** When language
+   is selected, first run `node <scripts>/language.mjs [--prd <file>]` and keep its output whole.
+   Commit, then launch in **one
    message**, all in the background, every brief pointing at that commit (`git diff <base> <commit>`, `git show <commit>:<path>`), never at
    the working tree:
    - the **code-reviewer** (`core:code-reviewer`), when code-review is selected;
+   - the **security reviewer** (`core:security-reviewer`), when security is selected. Its
+     findings are advisory and go through fix-or-justify like any other;
    - the **check-adrs** agent (`core:check-adrs`), when check-adrs is selected, briefed from
      `/core:check-adrs`'s scope script as that skill says;
+   - the **language judge** (`core:language-judge`), when language is selected, with the
+     language script's output. Each MISMATCH gets one ruling: a MISSING TERM goes into the
+     glossary through `/core:grill-with-docs`, and a MISNAMED name is renamed to its term;
    - the **diagram auditor** (`core:diagram-auditor`), when the plan names docs for it
      (`signOff.diagrams`), with those docs;
    - the **adversary** (`core:adversary`), always;

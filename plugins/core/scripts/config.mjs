@@ -144,7 +144,10 @@ export async function loadConfig(projectDir, pluginRoot) {
 }
 
 /** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */
-export const GATES = ['simplify', 'mutation', 'code-review', 'check-adrs', 'verify']
+export const GATES = ['simplify', 'mutation', 'code-review', 'security', 'check-adrs', 'language', 'verify']
+
+/** The gates that run only when `signOff.gates` names them, never by default. */
+const OPT_IN = ['security', 'language']
 
 /** The gates that need an engine from an enabled pack, and run once per stack root that has one. */
 const ENGINE_GATES = ['mutation', 'verify']
@@ -154,8 +157,9 @@ const SIGN_OFF_FIELDS = ['gates', 'docs', 'diagrams']
 /**
  * The sign-off a project selects, `{ gates, docs, diagrams }`: the gates in core's order, the
  * globs of the project's other living docs, which check-adrs greps for drift, and the docs whose
- * diagrams the diagram auditor checks still draw the code, each of which must exist. With no `gates`, every gate
- * whose engine an enabled pack provides is selected; [engines] holds the merged mutation and
+ * diagrams the diagram auditor checks still draw the code, each of which must exist. With no
+ * `gates`, every gate whose engine an enabled pack provides is selected, apart from the opt-in
+ * security and language gates; [engines] holds the merged mutation and
  * verify stacks. An unknown gate, or an engine gate no enabled pack provides, is an error.
  */
 function validSignOff(block = {}, engines, projectDir, errors) {
@@ -167,7 +171,7 @@ function validSignOff(block = {}, engines, projectDir, errors) {
   for (const field of Object.keys(block)) {
     if (!SIGN_OFF_FIELDS.includes(field)) errors.push(`signOff: there is no field "${field}". Fields: ${SIGN_OFF_FIELDS.join(', ')}.`)
   }
-  const { gates = GATES.filter(available), docs = [], diagrams = [] } = block
+  const { gates = GATES.filter((gate) => available(gate) && !OPT_IN.includes(gate)), docs = [], diagrams = [] } = block
   if (!Array.isArray(gates) || !gates.every((gate) => typeof gate === 'string')) {
     errors.push("signOff.gates: expected a list of gates, such as ['simplify', 'code-review'].")
   } else {

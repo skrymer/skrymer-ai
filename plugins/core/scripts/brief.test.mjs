@@ -83,6 +83,6 @@ test('a slot left unfilled, a slot the template lacks, and an agent with no temp
   assert.deepEqual([missing.status, missing.stdout], [1, 'STOP: the adversary brief needs every slot filled ("none" when it has nothing): issue, parent, files.\n'])
   assert.deepEqual([extra.status, extra.stdout], [1, 'STOP: the blind-arbiter brief has no slot "what". Its slots: question, position1, position2.\n'])
   assert.equal(unknown.status, 1)
-  assert.match(unknown.stdout, /^STOP: there is no brief template for "devils-advocate"\. Templates: acceptance-ledger, adversary, blind-arbiter, check-adrs, code-reviewer, diagram-auditor, resolutions, retro-miner, verdict-auditor\.\n$/)
+  assert.match(unknown.stdout, /^STOP: there is no brief template for "devils-advocate"\. Templates: acceptance-ledger, adversary, blind-arbiter, check-adrs, code-reviewer, diagram-auditor, language-judge, resolutions, retro-miner, security-reviewer, verdict-auditor\.\n$/)
   assert.equal(existsSync(signOffDir(dir, 'briefs')), false)
 })

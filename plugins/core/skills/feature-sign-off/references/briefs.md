@@ -35,6 +35,8 @@ long to quote, such as the scope script's.
 | `probes` | Each `MET (probe: …)` row the acceptance ledger returned, quoted, or none |
 | `memory` | The memory index's path, or none (retro miner) |
 | `docs` | The docs the plan names for the diagram auditor, from `signOff.diagrams` |
+| `language` | `language.mjs`'s output, whole (language judge) |
+| `prd` | How to read the PRD: its file, `gh issue view <n>`, or none |
 
 The blind arbiter's brief has no diff, by design: the working tree is not evidence for either
 position. A position carries what its agent cited, never your resolution row, and never a "for
