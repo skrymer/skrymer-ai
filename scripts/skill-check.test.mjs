@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { findSkillProblems } from './skill-check.mjs'
+import { findAgentProblems, findSkillProblems } from './skill-check.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -128,5 +128,58 @@ test('every skill a core or pack rule names has a SKILL.md in its own plugin, an
 
   // Then
   assert.ok(plugins.includes('core') && rules.length > 0)
+  assert.deepEqual(problems, [])
+})
+
+const agent = (frontmatter) => ({ path: 'plugins/core/agents/adversary.md', content: `---\n${frontmatter}\n---\n\nYou argue.\n` })
+
+test('a judging agent that can write, or that inherits every tool, is a problem', () => {
+  // Given one agent listing Edit, one listing no tools at all, and one with memory, which turns on writing
+  const files = [
+    agent('name: adversary\ntools: Read, Edit, Bash\nmodel: inherit'),
+    { ...agent('name: retro-miner\nmodel: inherit'), path: 'plugins/core/agents/retro-miner.md' },
+    { ...agent('name: blind-arbiter\ntools: Read\nmodel: inherit\nmemory: project'), path: 'plugins/core/agents/blind-arbiter.md' },
+  ]
+
+  // When the agents are checked
+  const problems = findAgentProblems(files)
+
+  // Then each is named with what makes it able to write
+  assert.deepEqual(problems, [
+    'plugins/core/agents/adversary.md: tools include Edit; a judging agent is read-only',
+    'plugins/core/agents/retro-miner.md: no tools list, so it inherits Edit and Write; list its tools',
+    'plugins/core/agents/blind-arbiter.md: memory turns on Write and Edit; a judging agent is read-only',
+  ])
+})
+
+test('a judging agent on a model of its own, or named apart from its file, is a problem', () => {
+  // Given an agent pinned to a model and named for another file
+  const files = [agent('name: devils-advocate\ntools: Read, Grep\nmodel: opus')]
+
+  // When the agents are checked
+  const problems = findAgentProblems(files)
+
+  // Then both are named
+  assert.deepEqual(problems, [
+    'plugins/core/agents/adversary.md: name "devils-advocate" should be "adversary"',
+    'plugins/core/agents/adversary.md: model "opus" should be "inherit"; neutrality comes from a fresh context, not a different model',
+  ])
+})
+
+test('every agent shipped in this repo is read-only, inherits the model and is named for its file', () => {
+  // Given every agent definition under plugins/
+  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'plugins/*/agents/*.md'], { cwd: REPO, encoding: 'utf8' })
+    .split('\n')
+    .filter((path) => path && existsSync(join(REPO, path)))
+    .map((path) => ({ path, content: readFileSync(join(REPO, path), 'utf8') }))
+
+  // When they are checked
+  const problems = findAgentProblems(files)
+
+  // Then core ships the sign-off's judging agents and none has a problem
+  assert.deepEqual(
+    files.map(({ path }) => path.split('/').at(-1)).sort(),
+    ['acceptance-ledger.md', 'adversary.md', 'blind-arbiter.md', 'check-adrs.md', 'code-reviewer.md', 'resolutions.md', 'retro-miner.md', 'verdict-auditor.md']
+  )
   assert.deepEqual(problems, [])
 })

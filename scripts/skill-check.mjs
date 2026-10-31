@@ -27,3 +27,26 @@ export function findSkillProblems(files) {
   }
   return problems
 }
+
+const WRITING_TOOLS = ['Edit', 'Write', 'NotebookEdit']
+
+/**
+ * Every agent a plugin ships judges, so it is read-only: it lists its tools, none of which
+ * writes, and sets no `memory`, which turns writing on. It runs on the session's own model,
+ * since a judge's neutrality comes from its fresh context. Its `name` matches its file.
+ */
+export function findAgentProblems(files) {
+  return files.flatMap(({ path, content }) => {
+    const frontmatter = content.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
+    const field = (key) => frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))?.[1].trim()
+    const file = posix.basename(path, '.md')
+    const problems = []
+    if (field('name') !== file) problems.push(`${path}: name "${field('name')}" should be "${file}"`)
+    const tools = field('tools')?.split(',').map((tool) => tool.trim())
+    if (!tools) problems.push(`${path}: no tools list, so it inherits Edit and Write; list its tools`)
+    for (const tool of tools?.filter((tool) => WRITING_TOOLS.includes(tool)) ?? []) problems.push(`${path}: tools include ${tool}; a judging agent is read-only`)
+    if (field('memory')) problems.push(`${path}: memory turns on Write and Edit; a judging agent is read-only`)
+    if (field('model') !== 'inherit') problems.push(`${path}: model "${field('model')}" should be "inherit"; neutrality comes from a fresh context, not a different model`)
+    return problems
+  })
+}
