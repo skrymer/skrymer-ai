@@ -789,15 +789,26 @@ test('the docs whose diagrams the sign-off audits are kept when each exists, and
   assert.deepEqual(config.signOff.diagrams, ['docs/ARCHITECTURE.md'])
 })
 
-test('a diagrams doc that does not exist, or diagrams that are not a list of docs, is an error', async () => {
-  // Given one config naming a missing doc and one naming a glob as a string
-  const missing = fixtureProject(configOf(`{ signOff: { diagrams: ['docs/GONE.md'] } }`))
+test('diagrams that are not a list of docs is an error', async () => {
+  // Given a config naming a glob as a string
   const shape = fixtureProject(configOf(`{ signOff: { diagrams: 'docs/*.md' } }`))
 
-  // When both are loaded
-  const [a, b] = await Promise.all([loadConfig(missing, PLUGIN_ROOT), loadConfig(shape, PLUGIN_ROOT)])
+  // When it is loaded
+  const result = await loadConfig(shape, PLUGIN_ROOT)
 
-  // Then each names the problem
-  assert.deepEqual(a, { errors: ['signOff.diagrams: "docs/GONE.md" does not exist in the project.'] })
-  assert.deepEqual(b, { errors: ["signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md']."] })
+  // Then it names the problem
+  assert.deepEqual(result, { errors: ["signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md']."] })
+})
+
+test('a diagrams doc that does not exist leaves every gate in force and lands in contextErrors', async () => {
+  // Given a config naming an architecture doc that has since been deleted
+  const missing = fixtureProject(configOf(`{ signOff: { diagrams: ['docs/GONE.md'] } }`))
+
+  // When it is loaded
+  const { config, errors } = await loadConfig(missing, PLUGIN_ROOT)
+
+  // Then the config loads, so the hooks stay on, and the missing doc is named for the sign-off
+  assert.equal(errors, undefined)
+  assert.deepEqual(config.signOff.diagrams, ['docs/GONE.md'])
+  assert.deepEqual(config.contextErrors, ['signOff.diagrams: "docs/GONE.md" does not exist in the project.'])
 })

@@ -159,6 +159,18 @@ test('an engine gate no enabled pack provides stops the plan, naming the fix', (
   assert.match(out, /^ {2}signOff\.gates: no enabled pack provides a verify engine\. Enable a stack whose pack has one, or drop "verify" from the gates\.$/m)
 })
 
+test('a diagrams doc that does not exist stops the plan, naming it', () => {
+  // Given a project whose signOff.diagrams names a doc that was deleted
+  const dir = project(KOTLIN_CHANGE, { signOff: `{ diagrams: ['docs/GONE.md'] }` })
+
+  // When the plan runs
+  const { status, out } = runScript(SCRIPT, dir)
+
+  // Then it stops on the missing doc, since the diagram auditor has nothing to read
+  assert.equal(status, 1)
+  assert.match(out, /^STOP: signOff\.diagrams: "docs\/GONE\.md" does not exist in the project\. Fix the path or drop it from the config\.$/m)
+})
+
 test('a branch with no change stops the plan, since nothing is there to sign off', () => {
   // Given a feature branch with nothing changed since its base
   const dir = project({})

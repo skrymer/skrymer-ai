@@ -36,6 +36,8 @@ async function main([command], projectDir) {
   const { config, errors } = await loadConfig(projectDir, PLUGIN_ROOT)
   if (errors) throw new Stop(`the project config has errors:\n${errors.map((error) => `  ${error}`).join('\n')}`)
   if (!config) throw new Stop('the project has no skrymer-ai config. /core:setup writes one.')
+  const missingDoc = config.contextErrors.find((error) => error.startsWith('signOff.diagrams:'))
+  if (missingDoc) throw new Stop(`${missingDoc} Fix the path or drop it from the config.`)
   const branch = measure(projectDir)
   if (command === undefined) return plan(config, branch)
   if (command === 'check') return check(config.check, branch, projectDir)

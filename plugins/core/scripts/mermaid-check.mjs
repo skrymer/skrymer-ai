@@ -6,12 +6,13 @@
  *
  *   node mermaid-check.mjs <doc.md> …
  *
- * Each block renders through mermaid-cli at a pinned version, run through `npx`, unless
+ * The blocks render together in one mermaid-cli run, and one by one only when that run fails,
+ * to name each that doesn't render. mermaid-cli runs at a pinned version through `npx`, unless
  * `SKRYMER_AI_MERMAID_CLI` names another command. mermaid-cli drives a headless Chromium through
  * Puppeteer; `SKRYMER_AI_PUPPETEER_CONFIG` names a Puppeteer config file for it, such as one
  * pointing at a local Chromium. It fails naming each block that doesn't render by its doc, the
- * heading it sits under and the renderer's last word, and stops, blaming no diagram, when the
- * browser itself won't start.
+ * heading it sits under and the parser's words, and stops, blaming no diagram, when the renderer
+ * can't start, can't be fetched, or can't start its browser.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -25,6 +26,10 @@ const CLI = ['npx', '-y', '@mermaid-js/mermaid-cli@11.17.0']
 
 /** What Puppeteer says when it can't launch Chromium: a fault of the machine, never of a diagram. */
 const BROWSER_FAILURE = /Failed to launch the browser process|Could not find (?:Chrome|Chromium|expected browser)|Browser was not found/
+/** What npm says when it can't fetch mermaid-cli, offline or behind a proxy. */
+const FETCH_FAILURE = /^npm (?:error|ERR!) /
+/** A stack frame, with its `at` or without, as mermaid-cli echoes the browser's. */
+const FRAME = /^(?:at\s|\S+ \((?:https?|file|node):)/
 const PUPPETEER_HINT = 'Set SKRYMER_AI_PUPPETEER_CONFIG to a Puppeteer config file, such as {"executablePath": "<path to chrome>"} for a local Chromium, or {"args": ["--no-sandbox"]} where the system restricts its sandbox.'
 
 class Stop extends Error {}
@@ -39,10 +44,14 @@ function main(paths, projectDir) {
   }
   const scratch = mkdtempSync(join(tmpdir(), 'mermaid-check-'))
   try {
-    const failed = diagrams.flatMap((diagram, i) => {
-      const reason = render(diagram.body, join(scratch, `${i}`))
-      return reason === null ? [] : [{ ...diagram, reason }]
-    })
+    const together = diagrams.map(({ body }) => `\`\`\`mermaid\n${body}\n\`\`\`\n`).join('\n')
+    const failed =
+      render(together, join(scratch, 'all'), 'md') === null
+        ? []
+        : diagrams.flatMap((diagram, i) => {
+            const reason = render(diagram.body, join(scratch, `${i}`), 'mmd')
+            return reason === null ? [] : [{ ...diagram, reason }]
+          })
     if (!failed.length) {
       process.stdout.write(`${count(diagrams.length, 'diagram')} in ${paths.join(', ')} render${diagrams.length === 1 ? 's' : ''}.\n`)
       return
@@ -75,25 +84,32 @@ function diagramsIn(path, markdown) {
   return diagrams
 }
 
-/** Null if [body] renders, else the renderer's last word on why not. [stem] names its scratch files. */
-function render(body, stem) {
-  writeFileSync(`${stem}.mmd`, `${body}\n`)
-  const [command, ...prefix] = process.env.SKRYMER_AI_MERMAID_CLI?.trim().split(/\s+/) ?? CLI
+/**
+ * Null if [text] renders, else the parser's words on why not. [stem] names its scratch files and
+ * [ext] says whether [text] is one block (`mmd`) or Markdown holding them all (`md`).
+ */
+function render(text, stem, ext) {
+  writeFileSync(`${stem}.${ext}`, `${text}\n`)
+  const [command, ...prefix] = process.env.SKRYMER_AI_MERMAID_CLI?.trim().split(/\s+/).filter(Boolean) || []
+  const cli = command ? [command, ...prefix] : CLI
   const config = process.env.SKRYMER_AI_PUPPETEER_CONFIG?.trim()
-  const args = [...prefix, '-q', '-i', `${stem}.mmd`, '-o', `${stem}.svg`, ...(config ? ['-p', config] : [])]
-  const run = spawnSync(command, args, { encoding: 'utf8' })
-  if (run.status === 0 && existsSync(`${stem}.svg`)) return null
-  if (run.error) return `the renderer could not start (${run.error.message})`
+  const out = `${stem}.out.${ext === 'md' ? 'md' : 'svg'}`
+  const args = [...cli.slice(1), '-q', '-i', `${stem}.${ext}`, '-o', out, ...(config ? ['-p', config] : [])]
+  const run = spawnSync(cli[0], args, { encoding: 'utf8' })
+  if (run.status === 0 && existsSync(out)) return null
+  if (run.error) throw new Stop(`the renderer could not start, so no diagram was checked: ${run.error.message}`)
   const said = `${run.stdout ?? ''}\n${run.stderr ?? ''}`
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('at ') && !line.startsWith('TROUBLESHOOTING:'))
+    .filter((line) => line && !FRAME.test(line) && !line.startsWith('TROUBLESHOOTING:'))
   const launch = said.findIndex((line) => BROWSER_FAILURE.test(line))
   if (launch >= 0) {
     const why = said.slice(launch, launch + 2).map((line) => line.replace(/^Error:\s*/, '').replace(/^\[[^\]]*\]\s*/, '')).join(' ')
     throw new Stop(`mermaid-cli could not start a browser, so no diagram was checked: ${why} ${PUPPETEER_HINT}`)
   }
-  return said.at(-1) ?? `the renderer exited ${run.status ?? run.signal} without a word`
+  const npm = said.filter((line) => FETCH_FAILURE.test(line))
+  if (npm.length) throw new Stop(`the renderer could not be fetched, so no diagram was checked: ${npm.at(-1)}`)
+  return said.find((line) => /^Expecting\b/.test(line)) ?? said.at(-1) ?? `the renderer exited ${run.status ?? run.signal} without a word`
 }
 
 const count = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`

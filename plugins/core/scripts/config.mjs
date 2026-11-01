@@ -38,8 +38,9 @@ export function isTddGated(projectDir, file, globs) {
 /**
  * `{ config }` with the merged view, `{ config: null }` when the project has no config, or
  * `{ errors }` naming each problem in words a person can act on. A bad `tracker` or `domain`
- * block only describes the project to the session, so it lands in `config.contextErrors`
- * instead and leaves every gate and rule in force.
+ * block only describes the project to the session, and a `signOff.diagrams` doc that doesn't
+ * exist matters only to the sign-off, so each lands in `config.contextErrors` instead and leaves
+ * every gate and rule in force.
  */
 export async function loadConfig(projectDir, pluginRoot) {
   const file = join(projectDir, CONFIG_PATH)
@@ -150,7 +151,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
       if (!isDirectory(join(projectDir, context))) contextErrors.push(`domain.contexts: "${context}" does not exist in the project.`)
     }
   }
-  const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors)
+  const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors, contextErrors)
   if (errors.length) return { errors }
   return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, lint, signOff, tracker, domain, contextErrors } }
 }
@@ -166,11 +167,13 @@ const SIGN_OFF_FIELDS = ['gates', 'docs', 'diagrams']
 /**
  * The sign-off a project selects, `{ gates, docs, diagrams }`: the gates in core's order, the
  * globs of the project's other living docs, which check-adrs greps for drift, and the docs whose
- * diagrams the diagram auditor checks still draw the code, each of which must exist. With no `gates`, every gate
+ * diagrams the diagram auditor checks still draw the code. With no `gates`, every gate
  * whose engine an enabled pack provides is selected; [engines] holds the merged mutation and
- * verify stacks. An unknown gate, or an engine gate no enabled pack provides, is an error.
+ * verify stacks. An unknown gate, or an engine gate no enabled pack provides, is an error. A
+ * diagrams doc that doesn't exist goes to [contextErrors]: only the sign-off reads it, so a
+ * renamed doc must not switch the hooks off.
  */
-function validSignOff(block = {}, engines, projectDir, errors) {
+function validSignOff(block = {}, engines, projectDir, errors, contextErrors) {
   const available = (gate) => !ENGINE_GATES.includes(gate) || engines[gate].length > 0
   if (!isObject(block)) {
     errors.push(`signOff: expected { ${SIGN_OFF_FIELDS.join(', ')} }.`)
@@ -196,7 +199,7 @@ function validSignOff(block = {}, engines, projectDir, errors) {
   if (!Array.isArray(diagrams) || !diagrams.every((doc) => typeof doc === 'string' && doc)) {
     errors.push("signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md'].")
   } else {
-    for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) errors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
+    for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) contextErrors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
   }
   return { gates: GATES.filter((gate) => Array.isArray(gates) && gates.includes(gate)), docs, diagrams }
 }
