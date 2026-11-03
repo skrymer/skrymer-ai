@@ -5,6 +5,8 @@
  * A run of its own also keeps the check clear of other runs on the same machine. Every process
  * the run starts inherits that `TMPDIR`, so on Linux any still running once the tests end (a dev
  * server nobody stopped, a background download) is found by it, named, stopped, and fails the run.
+ * With `SKRYMER_AI_KEEP_TEST_DIRS` set, the dir and the test dirs in it are kept, to read a failed
+ * test's logs, and what is in it isn't checked.
  */
 
 import { spawn } from 'node:child_process'
@@ -67,6 +69,7 @@ function finish(failure, status = 1) {
   if (finished) return
   finished = true
   const running = stopStragglers()
+  const keep = Boolean(process.env.SKRYMER_AI_KEEP_TEST_DIRS)
   if (failure) {
     console.error(failure)
   } else {
@@ -75,12 +78,17 @@ function finish(failure, status = 1) {
       console.error(`run-tests: ${running.length} process(es) left running, now stopped. Stop what a test starts before it ends.`)
       status = 1
     }
-    const leftovers = readdirSync(tmp)
+    const leftovers = keep ? [] : readdirSync(tmp)
     for (const name of leftovers) console.error(`run-tests: left behind in the tmpdir: ${name}`)
     if (leftovers.length) {
       console.error(`run-tests: ${leftovers.length} temp dir(s) left behind. Make them with tempDir() from plugins/core/scripts/temp-dir.mjs, or remove them when done.`)
       status = 1
     }
+  }
+  if (keep) {
+    console.error(`run-tests: kept the test dirs in ${tmp}`)
+    process.exitCode = status ?? 1
+    return
   }
   try {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 })

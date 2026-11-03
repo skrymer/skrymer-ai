@@ -2,6 +2,7 @@
  * Temp dirs for tests that remove themselves when the test file ends. Removing them only then,
  * rather than as each test ends, keeps them there for the test's own teardown (a stack's `down`
  * reads its state from the project) and for dirs a `before` hook makes for the tests to share.
+ * With `SKRYMER_AI_KEEP_TEST_DIRS` set they are kept, to read a failed test's logs.
  */
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -13,6 +14,7 @@ const dirs = new Set()
 
 // Registered when the first test module imports this one, so it runs after the file's last test.
 after(() => {
+  if (process.env.SKRYMER_AI_KEEP_TEST_DIRS) return
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 

@@ -169,3 +169,23 @@ test('starts and stops a server', () => {
   // Then the run passes
   assert.equal(run.status, 0, run.out)
 })
+
+test('with SKRYMER_AI_KEEP_TEST_DIRS set, keeps every test dir and says where', () => {
+  // Given a suite whose test makes a dir with tempDir, and a run asked to keep the test dirs
+  const { dir, tmp } = suite(`import { test } from 'node:test'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tempDir } from ${JSON.stringify(join(import.meta.dirname, '..', 'plugins', 'core', 'scripts', 'temp-dir.mjs'))}
+test('writes a log', () => { writeFileSync(join(tempDir('kept-'), 'stack.log'), 'up failed') })
+`)
+
+  // When the suite runs through the runner
+  const run = runScript(script, dir, ['x.test.mjs'], { TMPDIR: tmp, SKRYMER_AI_KEEP_TEST_DIRS: '1' })
+
+  // Then the run passes, names where it kept the dirs, and the test's log is still there
+  assert.equal(run.status, 0, run.out)
+  const kept = run.out.match(/kept the test dirs in (\S+)/)?.[1]
+  assert.ok(kept, run.out)
+  const [made] = readdirSync(kept)
+  assert.equal(readFileSync(join(kept, made, 'stack.log'), 'utf8'), 'up failed')
+})
