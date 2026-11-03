@@ -1,6 +1,6 @@
 import { before, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -53,9 +53,9 @@ class ${name} {
 }
 `
 
-/** Runs the hook on a pending [toolInput] in [project], with [env] added. */
-function runHook(project, toolInput, env = {}) {
-  const result = spawnSync('node', [HOOK], {
+/** Runs [hook] on a pending [toolInput] in [project], with [env] added. */
+function runHook(project, toolInput, env = {}, hook = HOOK) {
+  const result = spawnSync('node', [hook], {
     input: JSON.stringify({
       hook_event_name: 'PreToolUse',
       tool_name: 'old_string' in toolInput ? 'Edit' : 'Write',
@@ -329,8 +329,8 @@ test('with config errors, a write to a file that is not a test says nothing', ()
   // Given a config whose one root does not exist
   const project = gitProject(missingRoot, {})
 
-  // When a source file is written / Then the gate stays silent
-  silent(runHook(project, { file_path: 'acme-api/src/main/kotlin/Totals.kt', content: 'class Totals\n' }))
+  // When a source file is written with what would be a test in a test file / Then the gate stays silent
+  silent(runHook(project, { file_path: 'acme-api/src/main/kotlin/Totals.kt', content: kotlinTest('Totals') }))
 })
 
 test('with config errors, an edit to a test file that adds no test says nothing', () => {
@@ -347,6 +347,37 @@ test('with config errors, a new test in any pack’s test files says the scan wa
 
   // When a spec is written in a root the config never names / Then the skip is said
   skippedWith(runHook(project, { file_path: 'web/app/total.spec.ts', content: vitestSpec }), 'project config')
+})
+
+test('with config errors, a new test under a dot-directory root says the scan was skipped', () => {
+  // Given a config whose one root does not exist
+  const project = gitProject(missingRoot, {})
+
+  // When a Kotlin test is written under a root inside a dot-directory / Then the skip is said
+  skippedWith(runHook(project, { ...newKotlinTest, file_path: `.tools/${newKotlinTest.file_path}` }), 'project config')
+})
+
+/** A copy of the gate installed beside kotlin-spring and a pack that does not import. */
+function besideBrokenPack() {
+  const plugins = tempDir('duplication-gate-plugins-')
+  const scripts = dirname(HOOK)
+  cpSync(scripts, join(plugins, 'core', 'scripts'), { recursive: true, filter: (path) => !path.endsWith('.test.mjs') })
+  cpSync(join(scripts, '..', '..', 'kotlin-spring'), join(plugins, 'kotlin-spring'), { recursive: true })
+  mkdirSync(join(plugins, 'broken'))
+  writeFileSync(join(plugins, 'broken', 'skrymer-ai.pack.mjs'), 'export default {')
+  return join(plugins, 'core', 'scripts', 'duplication-gate.mjs')
+}
+
+test('with config errors and a pack that does not import, only a new test in another pack says the scan was skipped', () => {
+  // Given a kotlin-spring config whose root does not exist, beside a pack that does not import
+  const project = gitProject(configOf(`{ stacks: { 'kotlin-spring': { roots: ['missing'] } } }`), {})
+  const hook = besideBrokenPack()
+
+  // When a source file is written / Then the gate stays silent
+  silent(runHook(project, { file_path: 'acme-api/src/main/kotlin/Totals.kt', content: 'class Totals\n' }, {}, hook))
+
+  // When a Kotlin test is written / Then the skip is said
+  skippedWith(runHook(project, newKotlinTest, {}, hook), 'project config')
 })
 
 test('with a config that does not load, a new test still says the scan was skipped', () => {

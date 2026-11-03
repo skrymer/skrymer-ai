@@ -95,7 +95,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
       errors.push(`stacks: there is no pack "${pack}". ${where}`)
       continue
     }
-    const fragment = (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
+    const fragment = await loadPack(dir)
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
     const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
@@ -146,7 +146,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
     if (typeof rule.why !== 'string' || !rule.why.trim()) errors.push(`${label}: why must say in one line why the skills apply.`)
     if (pattern && skills) prompts.push({ ...rule, pattern })
   }
-  prompts.push(...((await import(pathToFileURL(join(pluginRoot, PACK_FILE)).href)).default.skills?.prompts ?? []))
+  prompts.push(...((await loadPack(pluginRoot)).skills?.prompts ?? []))
   const contextErrors = []
   const tracker = { kind: project.tracker?.kind ?? 'github', labels: { ...DEFAULT_LABELS, ...project.tracker?.labels } }
   if (!TRACKERS.includes(tracker.kind)) contextErrors.push(`tracker.kind: expected "github" or "local", not "${String(tracker.kind)}".`)
@@ -427,6 +427,9 @@ export function packDir(pluginRoot, pack) {
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0]
   return newest ?? null
 }
+
+/** The rule fragment the pack or plugin at [dir] exports. */
+export const loadPack = async (dir) => (await import(pathToFileURL(join(dir, PACK_FILE)).href)).default
 
 /** The packs installed beside `core`. */
 export function availablePacks(pluginRoot) {

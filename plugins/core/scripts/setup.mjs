@@ -15,7 +15,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, wr
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unifiedDiff } from './unified-diff.mjs'
-import { CONFIG_PATH, PACK_FILE, STAGED, availablePacks, loadConfig, mergeConfig, packDir } from './config.mjs'
+import { CONFIG_PATH, STAGED, availablePacks, loadConfig, loadPack, mergeConfig, packDir } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MARKETPLACE = 'skrymer-ai'
@@ -93,7 +93,7 @@ const SKIPPED = new Set(['node_modules', 'build', 'dist', 'target', 'out'])
 async function loadPacks() {
   const packs = []
   for (const name of availablePacks(PLUGIN_ROOT)) {
-    const fragment = (await import(pathToFileURL(join(packDir(PLUGIN_ROOT, name), PACK_FILE)).href)).default
+    const fragment = await loadPack(packDir(PLUGIN_ROOT, name))
     packs.push({ name, fragment })
   }
   return packs
