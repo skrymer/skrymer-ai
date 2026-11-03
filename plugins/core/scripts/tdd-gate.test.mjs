@@ -134,7 +134,7 @@ test('a config that makes loading it throw lets the write through and says the T
   assert.equal(status, 0)
   const out = JSON.parse(stdout)
   assert.equal(out.hookSpecificOutput, undefined)
-  assert.match(out.systemMessage, /TDD gate is off until the project config is fixed:\nthe acme stacks are not ready$/)
+  assert.match(out.systemMessage, /TDD gate is off until the project config is fixed:\n.*does not load: the acme stacks are not ready$/)
 })
 
 test('a Probity command set with stray whitespace still runs', () => {

@@ -29,9 +29,7 @@ async function main() {
   const input = readFileSync(0, 'utf8')
   const filePath = JSON.parse(input)?.tool_input?.file_path
   if (typeof filePath !== 'string') return
-  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT).catch((error) => ({
-    errors: [error.message],
-  }))
+  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
   if (errors) {
     const message = `skrymer-ai: the TDD gate is off until the project config is fixed:\n${errors.join('\n')}`
     process.stdout.write(JSON.stringify({ systemMessage: message }))
