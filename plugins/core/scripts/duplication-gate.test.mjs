@@ -570,17 +570,18 @@ test('a jscpd that fails without a word is named by its exit code', () => {
 })
 
 test('a scan past its time limit is killed with every process it started', () => {
-  // Given
+  // Given a jscpd that starts a child, writes its pid and hangs. It is a sh script, which starts in
+  // a millisecond, so the time limit doesn't land before the pid is written on a loaded machine.
   const project = gitProject(kotlinConfig, kotlinClone.base, kotlinClone.branch)
-  const pidFile = join(tempDir('duplication-gate-pid-'), 'pid')
-  const jscpd = fakeJscpd(
-    `const child = require('node:child_process').spawn('sleep', ['30'], { stdio: 'ignore' }); require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(child.pid)); setTimeout(() => {}, 30000)`
-  )
+  const dir = tempDir('duplication-gate-pid-')
+  const pidFile = join(dir, 'pid')
+  writeFileSync(join(dir, 'jscpd.sh'), `sleep 30 </dev/null >/dev/null 2>&1 & echo $! > '${pidFile}.part' && mv '${pidFile}.part' '${pidFile}'\nwait\n`)
 
-  // When
-  runHook(project, newKotlinTest, { SKRYMER_AI_JSCPD: jscpd, SKRYMER_AI_DUPLICATION_GATE_TIMEOUT_MS: '500' })
+  // When the gate runs it with a short time limit
+  runHook(project, newKotlinTest, { SKRYMER_AI_JSCPD: `sh ${join(dir, 'jscpd.sh')}`, SKRYMER_AI_DUPLICATION_GATE_TIMEOUT_MS: '500' })
 
-  // Then
+  // Then the child is gone too
+  assert.ok(existsSync(pidFile), 'the time limit landed before the fake jscpd wrote its pid')
   const pid = Number(readFileSync(pidFile, 'utf8'))
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
 })
