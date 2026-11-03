@@ -1,7 +1,7 @@
 import { before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { tempDir } from './temp-dir.mjs'
@@ -586,23 +586,23 @@ test('a scan past its time limit is killed with every process it started', () =>
 })
 
 /**
- * A dir holding an `npx` that passes an `--offline` run to the real npx, so npm itself answers
- * the cache lookup, and writes any other run's arguments to [record] instead of downloading: a
- * real download runs on in the background, past the test and its cleanup.
+ * An env whose `npx` passes an `--offline` run to the real npx, so npm itself answers the cache
+ * lookup, and otherwise prints what the download would and records its arguments in [download]
+ * instead: a real download runs on in the background, past the test and its cleanup.
  */
-function recordingNpx(record) {
+function recordingNpx() {
   const bin = tempDir('duplication-gate-bin-')
-  const realNpx = execFileSync('which', ['npx'], { encoding: 'utf8' }).trim()
+  const download = join(bin, 'download')
   writeFileSync(
     join(bin, 'npx'),
-    `#!/usr/bin/env node
-const args = process.argv.slice(2)
-if (args.includes('--offline')) process.exit(require('node:child_process').spawnSync(${JSON.stringify(realNpx)}, args, { stdio: 'inherit' }).status ?? 1)
-require('node:fs').writeFileSync(${JSON.stringify(record)}, args.join(' '))
+    `#!/bin/sh
+case " $* " in *" --offline "*) PATH="\${PATH#*${delimiter}}" exec npx "$@" ;; esac
+echo 'jscpd 5.4.0'
+echo "$*" > '${download}.part' && mv '${download}.part' '${download}'
 `,
     { mode: 0o755 }
   )
-  return bin
+  return { env: { PATH: `${bin}${delimiter}${process.env.PATH}` }, download }
 }
 
 /** The content of [file] once something writes it, waiting up to five seconds. */
@@ -618,13 +618,12 @@ test('on a first run with jscpd not yet downloaded, the test is let through and 
   // Given a project, an empty npm cache, and an npx that records the download rather than running it
   const project = gitProject(kotlinConfig, kotlinClone.base, kotlinClone.branch)
   const emptyCache = tempDir('duplication-gate-npm-cache-')
-  const record = join(tempDir('duplication-gate-download-'), 'args')
-  const bin = recordingNpx(record)
+  const npx = recordingNpx()
 
   // When a new test is written
-  const run = runHook(project, newKotlinTest, { npm_config_cache: emptyCache, PATH: `${bin}:${process.env.PATH}` })
+  const run = runHook(project, newKotlinTest, { npm_config_cache: emptyCache, ...npx.env })
 
   // Then the test is let through, saying jscpd is downloading, and the download of jscpd has started
   skippedWith(run, 'jscpd@5\\.4\\.0 is downloading for its first run; the next new test is checked$')
-  assert.equal(eventually(record), '-y jscpd@5.4.0 --version')
+  assert.equal(eventually(npx.download), '-y jscpd@5.4.0 --version\n')
 })

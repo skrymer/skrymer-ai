@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 import { runScript } from '../plugins/core/scripts/git-fixture.mjs'
 import { tempDir } from '../plugins/core/scripts/temp-dir.mjs'
 
@@ -78,13 +79,11 @@ test("removes the run's own temp dir, leftovers and all", () => {
   assert.deepEqual(readdirSync(tmp), [])
 })
 
-test("ignores npm's compile cache, which npm keeps in the tmpdir under one fixed name", () => {
-  // Given a suite whose test leaves only a node-compile-cache dir, as an npx call does
+test("leaves nothing for Node's compile cache, which npm turns on in the tmpdir", () => {
+  // Given a suite whose test turns the compile cache on, as npm does
   const { dir, tmp } = suite(`import { test } from 'node:test'
-import { mkdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-test('runs npx', () => { mkdirSync(join(tmpdir(), 'node-compile-cache')) })
+import { enableCompileCache } from 'node:module'
+test('runs npm', () => { enableCompileCache() })
 `)
 
   // When the suite runs through the runner
@@ -92,4 +91,41 @@ test('runs npx', () => { mkdirSync(join(tmpdir(), 'node-compile-cache')) })
 
   // Then the run passes
   assert.equal(run.status, 0, run.out)
+})
+
+test('says so when the test run itself is killed, rather than blaming the dirs it had not removed yet', () => {
+  // Given a suite whose test kills the node --test process running it
+  const { dir, tmp } = suite(`import { test } from 'node:test'
+test('dies', () => { process.kill(process.ppid, 'SIGKILL') })
+`)
+
+  // When the suite runs through the runner
+  const run = runScript(script, dir, ['x.test.mjs'], { TMPDIR: tmp })
+
+  // Then the run fails, naming the signal
+  assert.notEqual(run.status, 0, run.out)
+  assert.match(run.out, /killed by SIGKILL/)
+  assert.doesNotMatch(run.out, /tempDir\(\)/)
+})
+
+test('on SIGTERM, stops the test run and still removes its temp dir', async () => {
+  // Given a suite whose test makes a temp dir and then hangs
+  const { dir, tmp } = suite(`import { test } from 'node:test'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+test('hangs', () => { mkdtempSync(join(tmpdir(), 'hung-')); return new Promise(() => setTimeout(() => {}, 60000)) })
+`)
+  const runner = spawn('node', [script, 'x.test.mjs'], { cwd: dir, env: { ...process.env, TMPDIR: tmp } })
+  const closed = new Promise((resolve) => runner.on('close', resolve))
+  const runDir = () => readdirSync(tmp).map((name) => join(tmp, name))[0]
+  while (!runDir() || !readdirSync(runDir()).some((name) => name.startsWith('hung-'))) await new Promise((r) => setTimeout(r, 20))
+
+  // When the runner is sent SIGTERM
+  runner.kill('SIGTERM')
+  const status = await closed
+
+  // Then it fails, with nothing left in the tmpdir it was given
+  assert.notEqual(status, 0)
+  assert.deepEqual(readdirSync(tmp), [])
 })
