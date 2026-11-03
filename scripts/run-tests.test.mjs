@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readdirSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { runScript } from '../plugins/core/scripts/git-fixture.mjs'
@@ -128,4 +128,44 @@ test('hangs', () => { mkdtempSync(join(tmpdir(), 'hung-')); return new Promise((
   // Then it fails, with nothing left in the tmpdir it was given
   assert.notEqual(status, 0)
   assert.deepEqual(readdirSync(tmp), [])
+})
+
+test('fails the run, naming the process, and stops it when a test leaves a process running', () => {
+  // Given a suite whose test starts a detached process and never stops it
+  const pidFile = join(tempDir('run-tests-pid-'), 'pid')
+  const { dir, tmp } = suite(`import { test } from 'node:test'
+import { spawn } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+test('starts a server', () => {
+  const server = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+  server.unref()
+  writeFileSync(${JSON.stringify(pidFile)}, String(server.pid))
+})
+`)
+
+  // When the suite runs through the runner
+  const run = runScript(script, dir, ['x.test.mjs'], { TMPDIR: tmp })
+
+  // Then the run fails, naming the process, and the process is gone
+  assert.equal(run.status, 1, run.out)
+  assert.match(run.out, /left running: \d+ sleep 30/)
+  assert.throws(() => process.kill(Number(readFileSync(pidFile, 'utf8')), 0), { code: 'ESRCH' })
+})
+
+test('lets a process the tests stop as they end finish exiting', () => {
+  // Given a suite whose test stops its process as the file ends, without waiting for it to exit
+  const { dir, tmp } = suite(`import { test, after } from 'node:test'
+import { spawn } from 'node:child_process'
+test('starts and stops a server', () => {
+  const server = spawn('sh', ['-c', 'trap "sleep 0.3; exit 0" TERM; while :; do sleep 0.05; done'], { detached: true, stdio: 'ignore' })
+  server.unref()
+  after(() => process.kill(server.pid, 'SIGTERM'))
+})
+`)
+
+  // When the suite runs through the runner
+  const run = runScript(script, dir, ['x.test.mjs'], { TMPDIR: tmp })
+
+  // Then the run passes
+  assert.equal(run.status, 0, run.out)
 })

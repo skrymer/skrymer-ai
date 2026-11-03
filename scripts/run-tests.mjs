@@ -2,11 +2,13 @@
  * Runs `node --test` on the given globs with `TMPDIR` pointed at a fresh dir of its own, then
  * fails the run if anything is left in it: a test, a fixture or a script that made a temp dir
  * and never removed it. The dir is removed either way, so a leak can't pile up in `/tmp`.
- * A run of its own also keeps the check clear of other runs on the same machine.
+ * A run of its own also keeps the check clear of other runs on the same machine. Every process
+ * the run starts inherits that `TMPDIR`, so on Linux any still running once the tests end (a dev
+ * server nobody stopped, a background download) is found by it, named, stopped, and fails the run.
  */
 
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -25,14 +27,54 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => r
 run.on('error', (error) => finish(`run-tests: could not start node --test: ${error.message}`))
 run.on('close', (status, signal) => finish(signal && `run-tests: node --test was killed by ${signal}`, status))
 
+/** The pids of the processes still running with the run's `TMPDIR`; none where there is no `/proc`. */
+function stragglers() {
+  if (!existsSync('/proc')) return []
+  const entry = `TMPDIR=${tmp}`
+  return readdirSync('/proc')
+    .filter((name) => /^\d+$/.test(name) && Number(name) !== process.pid)
+    .filter((pid) => {
+      try {
+        return readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(entry)
+      } catch {
+        return false // gone, or another user's
+      }
+    })
+}
+
+/** Stops each process left running, once those stopping as the tests ended have had a second to exit. */
+function stopStragglers() {
+  let pids = stragglers()
+  for (let waited = 0; pids.length && waited < 1000; waited += 50) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+    pids = stragglers()
+  }
+  return pids.map((pid) => {
+    let command = '?'
+    try {
+      command = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean).join(' ')
+      process.kill(Number(pid), 'SIGKILL')
+    } catch {
+      // It exited after all.
+    }
+    return `${pid} ${command}`
+  })
+}
+
 let finished = false
 function finish(failure, status = 1) {
   // A spawn that fails can report both an error and a close.
   if (finished) return
   finished = true
+  const running = stopStragglers()
   if (failure) {
     console.error(failure)
   } else {
+    for (const line of running) console.error(`run-tests: left running: ${line}`)
+    if (running.length) {
+      console.error(`run-tests: ${running.length} process(es) left running, now stopped. Stop what a test starts before it ends.`)
+      status = 1
+    }
     const leftovers = readdirSync(tmp)
     for (const name of leftovers) console.error(`run-tests: left behind in the tmpdir: ${name}`)
     if (leftovers.length) {
