@@ -323,6 +323,40 @@ test('an invalid config lets the test through and says the duplication gate did 
   skippedWith(runHook(project, newKotlinTest), 'project config')
 })
 
+const missingRoot = configOf(`{ stacks: { nuxt: { roots: ['missing'] } } }`)
+
+test('with config errors, a write to a file that is not a test says nothing', () => {
+  // Given a config whose one root does not exist
+  const project = gitProject(missingRoot, {})
+
+  // When a source file is written / Then the gate stays silent
+  silent(runHook(project, { file_path: 'acme-api/src/main/kotlin/Totals.kt', content: 'class Totals\n' }))
+})
+
+test('with config errors, an edit to a test file that adds no test says nothing', () => {
+  // Given a config whose one root does not exist
+  const project = gitProject(missingRoot, {})
+
+  // When a test is renamed in place / Then the gate stays silent
+  silent(runHook(project, { file_path: 'web/app/total.spec.ts', old_string: "it('a', () => {})", new_string: "it('b', () => {})" }))
+})
+
+test('with config errors, a new test in any pack’s test files says the scan was skipped', () => {
+  // Given a config whose one root does not exist, so no stack's roots are known
+  const project = gitProject(missingRoot, {})
+
+  // When a spec is written in a root the config never names / Then the skip is said
+  skippedWith(runHook(project, { file_path: 'web/app/total.spec.ts', content: vitestSpec }), 'project config')
+})
+
+test('with a config that does not load, a new test still says the scan was skipped', () => {
+  // Given a config that is not valid JavaScript
+  const project = gitProject('export default {', {})
+
+  // When a Kotlin test is written / Then the skip is said
+  skippedWith(runHook(project, newKotlinTest), 'project config')
+})
+
 /** Commits everything in [project] on its current branch. */
 const commitAll = (project, message = 'work') => {
   git(project, 'add', '-A')
