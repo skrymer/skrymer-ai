@@ -8,8 +8,9 @@
  * `SKRYMER_AI_PROBITY` names another command to run Probity with, such as a local install.
  *
  * A gated write that Probity can't judge, because it fails to start, crashes or runs past the
- * hook's timeout, is denied, so TDD is never silently off. Input the gate can't read is
- * let through. Probity's own verdicts pass through unchanged.
+ * hook's timeout, is denied, so TDD is never silently off. A project config that doesn't
+ * load lets the write through and says the gate is off. Input the gate can't read is let
+ * through silently. Probity's own verdicts pass through unchanged.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -28,7 +29,9 @@ async function main() {
   const input = readFileSync(0, 'utf8')
   const filePath = JSON.parse(input)?.tool_input?.file_path
   if (typeof filePath !== 'string') return
-  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT)
+  const { config, errors } = await loadConfig(process.env.CLAUDE_PROJECT_DIR, PLUGIN_ROOT).catch((error) => ({
+    errors: [error.message],
+  }))
   if (errors) {
     const message = `skrymer-ai: the TDD gate is off until the project config is fixed:\n${errors.join('\n')}`
     process.stdout.write(JSON.stringify({ systemMessage: message }))

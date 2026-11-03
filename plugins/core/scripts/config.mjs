@@ -76,7 +76,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   const test = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
-    if (!Array.isArray(roots)) {
+    if (!Array.isArray(roots) || !roots.every((root) => typeof root === 'string')) {
       errors.push(`stacks.${pack}.roots: expected a list of directories.`)
       continue
     }
@@ -126,11 +126,15 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   if (Array.isArray(projectTdd) && projectTdd.every((glob) => typeof glob === 'string')) {
     tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
   } else errors.push('tdd.files: expected a list of globs.')
-  for (const rule of project.skills?.files ?? []) {
+  const projectFiles = project.skills?.files ?? []
+  if (!isRules(projectFiles)) errors.push('skills.files: expected a list of rules.')
+  for (const rule of isRules(projectFiles) ? projectFiles : []) {
     const path = toRegex(rule.path, '', `skills.files "${rule.id}": path`, errors)
     if (path) files.push({ ...rule, path })
   }
-  for (const rule of project.skills?.prompts ?? []) {
+  const projectPrompts = project.skills?.prompts ?? []
+  if (!isRules(projectPrompts)) errors.push('skills.prompts: expected a list of rules.')
+  for (const rule of isRules(projectPrompts) ? projectPrompts : []) {
     const label = `skills.prompts "${rule.id}"`
     const pattern = toRegex(rule.pattern, 'i', `${label}: pattern`, errors)
     const skills = Array.isArray(rule.skills) && rule.skills.length && rule.skills.every((skill) => typeof skill === 'string')
@@ -141,7 +145,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   prompts.push(...((await import(pathToFileURL(join(pluginRoot, PACK_FILE)).href)).default.skills?.prompts ?? []))
   const contextErrors = []
   const tracker = { kind: project.tracker?.kind ?? 'github', labels: { ...DEFAULT_LABELS, ...project.tracker?.labels } }
-  if (!TRACKERS.includes(tracker.kind)) contextErrors.push(`tracker.kind: expected "github" or "local", not "${tracker.kind}".`)
+  if (!TRACKERS.includes(tracker.kind)) contextErrors.push(`tracker.kind: expected "github" or "local", not "${String(tracker.kind)}".`)
   for (const [role, label] of Object.entries(project.tracker?.labels ?? {})) {
     if (!ROLES.includes(role)) contextErrors.push(`tracker.labels: there is no role "${role}". Roles: ${ROLES.join(', ')}.`)
     else if (typeof label !== 'string' || !label) contextErrors.push(`tracker.labels.${role}: expected a label name.`)
@@ -367,6 +371,9 @@ function urlPattern(value) {
 }
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** Whether [value] is a list of rule objects. */
+const isRules = (value) => Array.isArray(value) && value.every(isObject)
 
 /** Whether [value] is a non-empty list of non-empty strings. */
 const isStrings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string' && item)
