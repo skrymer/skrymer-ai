@@ -49,13 +49,21 @@ export async function loadConfig(projectDir, pluginRoot) {
   try {
     project = (await import(pathToFileURL(file).href)).default
   } catch (error) {
-    return { errors: [`${CONFIG_PATH} does not load: ${error.message}`] }
+    return { errors: [`${CONFIG_PATH} does not load: ${reason(error)}`] }
   }
   if (typeof project !== 'object' || project === null) {
     return { errors: [`${CONFIG_PATH}: expected \`export default defineConfig({ … })\`.`] }
   }
-  return mergeConfig(projectDir, pluginRoot, project)
+  try {
+    return await mergeConfig(projectDir, pluginRoot, project)
+  } catch (error) {
+    // A shape no check catches must still come back as an error, so no hook goes silently off.
+    return { errors: [`${CONFIG_PATH} does not load: ${reason(error)}`] }
+  }
 }
+
+/** What [error] says, whatever was thrown. */
+const reason = (error) => String(error?.message ?? error)
 
 /**
  * [project], a config as its module exports it, merged over the packs it enables: `{ config }`
@@ -76,7 +84,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   const test = []
   for (const [pack, stack] of Object.entries(project.stacks ?? {})) {
     const roots = stack?.roots
-    if (!Array.isArray(roots) || !roots.every((root) => typeof root === 'string')) {
+    if (!listOf(roots, (root) => typeof root === 'string')) {
       errors.push(`stacks.${pack}.roots: expected a list of directories.`)
       continue
     }
@@ -123,21 +131,17 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
     }
   }
   const projectTdd = project.tdd?.files ?? []
-  if (Array.isArray(projectTdd) && projectTdd.every((glob) => typeof glob === 'string')) {
+  if (listOf(projectTdd, (glob) => typeof glob === 'string')) {
     tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
   } else errors.push('tdd.files: expected a list of globs.')
-  const projectFiles = project.skills?.files ?? []
-  if (!isRules(projectFiles)) errors.push('skills.files: expected a list of rules.')
-  for (const rule of isRules(projectFiles) ? projectFiles : []) {
+  for (const rule of rules(project.skills?.files, 'skills.files', errors)) {
     const path = toRegex(rule.path, '', `skills.files "${rule.id}": path`, errors)
     if (path) files.push({ ...rule, path })
   }
-  const projectPrompts = project.skills?.prompts ?? []
-  if (!isRules(projectPrompts)) errors.push('skills.prompts: expected a list of rules.')
-  for (const rule of isRules(projectPrompts) ? projectPrompts : []) {
+  for (const rule of rules(project.skills?.prompts, 'skills.prompts', errors)) {
     const label = `skills.prompts "${rule.id}"`
     const pattern = toRegex(rule.pattern, 'i', `${label}: pattern`, errors)
-    const skills = Array.isArray(rule.skills) && rule.skills.length && rule.skills.every((skill) => typeof skill === 'string')
+    const skills = rule.skills?.length && listOf(rule.skills, (skill) => typeof skill === 'string')
     if (!skills) errors.push(`${label}: skills must be a list of skill names.`)
     if (typeof rule.why !== 'string' || !rule.why.trim()) errors.push(`${label}: why must say in one line why the skills apply.`)
     if (pattern && skills) prompts.push({ ...rule, pattern })
@@ -151,7 +155,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
     else if (typeof label !== 'string' || !label) contextErrors.push(`tracker.labels.${role}: expected a label name.`)
   }
   const domain = { contexts: project.domain?.contexts ?? ['.'] }
-  if (!Array.isArray(domain.contexts) || !domain.contexts.length || !domain.contexts.every((c) => typeof c === 'string')) {
+  if (!domain.contexts?.length || !listOf(domain.contexts, (c) => typeof c === 'string')) {
     contextErrors.push("domain.contexts: expected a list of directories, such as ['.'].")
   } else {
     for (const context of domain.contexts) {
@@ -193,7 +197,7 @@ function validSignOff(block = {}, engines, projectDir, errors, contextErrors) {
     if (!SIGN_OFF_FIELDS.includes(field)) errors.push(`signOff: there is no field "${field}". Fields: ${SIGN_OFF_FIELDS.join(', ')}.`)
   }
   const { gates = GATES.filter((gate) => available(gate) && !OPT_IN.includes(gate)), docs = [], diagrams = [] } = block
-  if (!Array.isArray(gates) || !gates.every((gate) => typeof gate === 'string')) {
+  if (!listOf(gates, (gate) => typeof gate === 'string')) {
     errors.push("signOff.gates: expected a list of gates, such as ['simplify', 'code-review'].")
   } else {
     for (const gate of gates) {
@@ -203,10 +207,10 @@ function validSignOff(block = {}, engines, projectDir, errors, contextErrors) {
       }
     }
   }
-  if (!Array.isArray(docs) || !docs.every((glob) => typeof glob === 'string' && glob)) {
+  if (!listOf(docs, (glob) => typeof glob === 'string' && glob)) {
     errors.push("signOff.docs: expected a list of globs, such as ['docs/**/*.md'].")
   }
-  if (!Array.isArray(diagrams) || !diagrams.every((doc) => typeof doc === 'string' && doc)) {
+  if (!listOf(diagrams, (doc) => typeof doc === 'string' && doc)) {
     errors.push("signOff.diagrams: expected a list of docs, such as ['docs/ARCHITECTURE.md'].")
   } else {
     for (const doc of diagrams) if (!existsSync(join(projectDir, doc))) contextErrors.push(`signOff.diagrams: "${doc}" does not exist in the project.`)
@@ -225,7 +229,7 @@ const CHECK_EXAMPLE = "[['pnpm', 'lint'], ['pnpm', 'test']]"
 
 /** [commands] if it is a non-empty list of commands, each a list of words, else null with an error under [label]. */
 function validCommands(commands, label, example, errors) {
-  if (Array.isArray(commands) && commands.length && commands.every((command) => isStrings(command))) return commands
+  if (commands?.length && listOf(commands, isStrings)) return commands
   errors.push(`${label}: expected a list of commands, each a list of words, such as ${example}.`)
   return null
 }
@@ -234,7 +238,7 @@ const LINT_EXAMPLE = "[['pnpm', 'exec', 'eslint', '{staged}']]"
 
 /** [commands] if they are a list of commands with `{staged}`, the staged files, only as a command's last word, else null with an error under [label]. */
 function validLint(commands, label, errors) {
-  const valid = Array.isArray(commands) && commands.length && commands.every((command) => isStrings(command) && !command.slice(0, -1).includes(STAGED))
+  const valid = commands?.length && listOf(commands, (command) => isStrings(command) && !command.slice(0, -1).includes(STAGED))
   if (valid) return commands
   errors.push(`${label}: expected a list of commands, each a list of words, with ${STAGED} only as a command's last word, such as ${LINT_EXAMPLE}.`)
   return null
@@ -263,7 +267,7 @@ function validFormat(groups, label, errors) {
   const before = errors.length
   groups.forEach((group, i) => {
     if (!isStrings(group?.files)) errors.push(`${label}[${i}].files: expected a list of globs.`)
-    if (!Array.isArray(group?.run) || !group.run.length || !group.run.every((command) => isStrings(command))) {
+    if (!group?.run?.length || !listOf(group.run, isStrings)) {
       errors.push(`${label}[${i}].run: expected a list of commands, each a list of words, such as [['prettier', '--write']].`)
     }
   })
@@ -316,7 +320,7 @@ function validVerify(block, label, errors) {
   const command = (value, field, example) => {
     if (!isStrings(value)) errors.push(`${label}.${field}: expected a command as a list of words, ${example}.`)
   }
-  const size = (value) => Array.isArray(value) && value.length === 2 && value.every((n) => Number.isInteger(n) && n > 0)
+  const size = (value) => value?.length === 2 && listOf(value, (n) => Number.isInteger(n) && n > 0)
   if (targets !== undefined && !(isObject(targets) && Object.keys(targets).length && Object.entries(targets).every(([name, value]) => /^[a-z0-9-]+$/.test(name) && size(value)))) {
     errors.push(`${label}.targets: expected { name: [width, height] } with names of lowercase letters, digits and dashes, such as { desktop: [1440, 900] }.`)
   }
@@ -372,11 +376,19 @@ function urlPattern(value) {
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** Whether [value] is a list of rule objects. */
-const isRules = (value) => Array.isArray(value) && value.every(isObject)
+/** Whether [value] is a list whose every item, holes included, passes [test]. */
+const listOf = (value, test) => Array.isArray(value) && Array.from(value).every(test)
+
+/** The rules in [value], none if it is unset, else an error under [label] and none. */
+function rules(value, label, errors) {
+  if (value == null) return []
+  if (listOf(value, isObject)) return value
+  errors.push(`${label}: expected a list of rules.`)
+  return []
+}
 
 /** Whether [value] is a non-empty list of non-empty strings. */
-const isStrings = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string' && item)
+const isStrings = (value) => value?.length > 0 && listOf(value, (item) => typeof item === 'string' && item)
 
 /** [value] as a regex: kept if it is one, compiled with [flags] if it is a string, else an error under [label]. */
 function toRegex(value, flags, label, errors) {

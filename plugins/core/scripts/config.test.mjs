@@ -118,6 +118,10 @@ for (const [body, error] of [
   [`{ skills: { files: [null] } }`, 'skills.files: expected a list of rules.'],
   [`{ skills: { prompts: 'billing' } }`, 'skills.prompts: expected a list of rules.'],
   [`{ skills: { prompts: [null] } }`, 'skills.prompts: expected a list of rules.'],
+  [`{ stacks: { 'kotlin-spring': { roots: [,] } } }`, 'stacks.kotlin-spring.roots: expected a list of directories.'],
+  [`{ skills: { files: [,] } }`, 'skills.files: expected a list of rules.'],
+  [`{ tdd: { files: [,] } }`, 'tdd.files: expected a list of globs.'],
+  [`{ signOff: { docs: ['docs/**', ,] } }`, "signOff.docs: expected a list of globs, such as ['docs/**/*.md']."],
 ]) {
   test(`a config shaped wrong is an error, not a throw: ${body}`, async () => {
     // Given a config with one field of the wrong shape
@@ -128,6 +132,23 @@ for (const [body, error] of [
 
     // Then the field is named as an error
     assert.deepEqual(result, { errors: [error] })
+  })
+}
+
+for (const [config, why] of [
+  [`export default { get stacks() { throw new Error('the acme stacks are not ready') } }\n`, 'the acme stacks are not ready'],
+  [`export default { skills: { files: [{ id: Symbol('billing'), path: 5 }] } }\n`, 'Cannot convert a Symbol value to a string'],
+  [`throw null\n`, 'null'],
+]) {
+  test(`a config that throws as it is read is an error saying why, not a throw: ${why}`, async () => {
+    // Given a config that throws while it is imported or merged
+    const project = fixtureProject(config)
+
+    // When it is loaded
+    const result = await loadConfig(project, PLUGIN_ROOT)
+
+    // Then the throw is an error naming the config and the reason
+    assert.deepEqual(result, { errors: [`.claude/skrymer-ai.config.mjs does not load: ${why}`] })
   })
 }
 
