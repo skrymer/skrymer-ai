@@ -109,6 +109,39 @@ test('a stack without a list of roots is an error, not a crash', async () => {
   assert.deepEqual(result, { errors: ['stacks.kotlin-spring.roots: expected a list of directories.'] })
 })
 
+for (const [body, error] of [
+  [`{ stacks: { 'kotlin-spring': { roots: [5] } } }`, 'stacks.kotlin-spring.roots: expected a list of directories.'],
+  [`{ stacks: { 'kotlin-spring': { roots: ['acme-api', null] } } }`, 'stacks.kotlin-spring.roots: expected a list of directories.'],
+  [`{ stacks: { 'kotlin-spring': { roots: [{}] } } }`, 'stacks.kotlin-spring.roots: expected a list of directories.'],
+  [`{ skills: { files: 5 } }`, 'skills.files: expected a list of rules.'],
+  [`{ skills: { files: { billing: /billing\\// } } }`, 'skills.files: expected a list of rules.'],
+  [`{ skills: { files: [null] } }`, 'skills.files: expected a list of rules.'],
+  [`{ skills: { prompts: 'billing' } }`, 'skills.prompts: expected a list of rules.'],
+  [`{ skills: { prompts: [null] } }`, 'skills.prompts: expected a list of rules.'],
+]) {
+  test(`a config shaped wrong is an error, not a throw: ${body}`, async () => {
+    // Given a config with one field of the wrong shape
+    const project = fixtureProject(configOf(body), ['acme-api'])
+
+    // When it is loaded
+    const result = await loadConfig(project, PLUGIN_ROOT)
+
+    // Then the field is named as an error
+    assert.deepEqual(result, { errors: [error] })
+  })
+}
+
+test('a tracker kind that is not a string is a context error, not a throw', async () => {
+  // Given a tracker kind that cannot be written into a message as it is
+  const project = fixtureProject(configOf(`{ tracker: { kind: Symbol('acme') } }`))
+
+  // When it is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then it is named as a context error
+  assert.deepEqual(config.contextErrors, ['tracker.kind: expected "github" or "local", not "Symbol(acme)".'])
+})
+
 test('a project rule without a path is an error, rather than a rule matching every file', async () => {
   // Given
   const project = fixtureProject(configOf(`{ skills: { files: [{ id: 'billing', paths: /billing\\//, skills: ['billing-rules'], why: 'x' }] } }`))

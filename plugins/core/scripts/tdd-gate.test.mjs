@@ -119,6 +119,24 @@ test('an invalid config lets the write through and says the TDD gate is off', ()
   assert.match(out.systemMessage, /TDD gate is off[\s\S]*tdd\.files/)
 })
 
+test('a config that makes loading it throw lets the write through and says the TDD gate is off, and why', () => {
+  // Given a project whose config throws as it is merged
+  const project = acmeProject()
+  writeFileSync(
+    join(project, '.claude', 'skrymer-ai.config.mjs'),
+    `export default { get stacks() { throw new Error('the acme stacks are not ready') } }`
+  )
+
+  // When a gated file is written
+  const { status, stdout } = runHook(project, 'acme-api/src/main/kotlin/Invoice.kt')
+
+  // Then the gate says it is off and names the error
+  assert.equal(status, 0)
+  const out = JSON.parse(stdout)
+  assert.equal(out.hookSpecificOutput, undefined)
+  assert.match(out.systemMessage, /TDD gate is off until the project config is fixed:\nthe acme stacks are not ready$/)
+})
+
 test('a Probity command set with stray whitespace still runs', () => {
   // Given
   const project = acmeProject()
