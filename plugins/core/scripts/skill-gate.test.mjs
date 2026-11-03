@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'skill-gate.mjs')
 
 /** A temp project holding [config] as its project config and an empty directory per root. */
 function fixtureProject(config, roots = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-gate-project-'))
+  const dir = tempDir('skill-gate-project-')
   for (const root of roots) mkdirSync(join(dir, root), { recursive: true })
   if (config !== undefined) {
     mkdirSync(join(dir, '.claude'))
@@ -38,7 +38,7 @@ const transcript = (...lines) => lines.join('\n') + '\n'
 
 /** Runs the hook on a Write of [file] in [project], in a session whose transcript is [text]. */
 function runHook(project, file, text = transcript()) {
-  const transcriptPath = join(mkdtempSync(join(tmpdir(), 'skill-gate-session-')), 'session.jsonl')
+  const transcriptPath = join(tempDir('skill-gate-session-'), 'session.jsonl')
   writeFileSync(transcriptPath, text)
   const result = spawnSync('node', [HOOK], {
     input: JSON.stringify({
@@ -179,7 +179,7 @@ test('a skill loaded before the last compaction no longer counts', () => {
 test("a subagent's write is judged by the skills the subagent loaded, not its parent's", () => {
   // Given
   const project = fixtureProject(kotlinConfig('acme-api'), ['acme-api'])
-  const session = mkdtempSync(join(tmpdir(), 'skill-gate-session-'))
+  const session = tempDir('skill-gate-session-')
   const parent = join(session, 'session.jsonl')
   writeFileSync(parent, transcript())
   mkdirSync(join(session, 'session', 'subagents'), { recursive: true })
@@ -287,7 +287,7 @@ test('a single-module project can name its own directory as the root, with or wi
 test('a file outside the project is not gated, even under a directory named like a root', () => {
   // Given
   const project = fixtureProject(kotlinConfig('acme-api'), ['acme-api'])
-  const elsewhere = mkdtempSync(join(tmpdir(), 'globex-'))
+  const elsewhere = tempDir('globex-')
 
   // When
   const result = runHook(project, `../${elsewhere.split('/').pop()}/acme-api/src/test/kotlin/Other.kt`)

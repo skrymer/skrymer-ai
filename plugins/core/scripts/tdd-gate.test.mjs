@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'tdd-gate.mjs')
 
 /** A temp project gating `acme-api/src/**\/*.kt` through kotlin-spring. */
 function acmeProject() {
-  const dir = mkdtempSync(join(tmpdir(), 'tdd-gate-project-'))
+  const dir = tempDir('tdd-gate-project-')
   mkdirSync(join(dir, 'acme-api'))
   mkdirSync(join(dir, '.claude'))
   writeFileSync(
@@ -24,7 +24,7 @@ export default defineConfig({ stacks: { 'kotlin-spring': { roots: ['acme-api'] }
 
 /** A stand-in for Probity that denies, echoing the arguments and the file it was handed. */
 function fakeProbity() {
-  const script = join(mkdtempSync(join(tmpdir(), 'tdd-gate-probity-')), 'probity.mjs')
+  const script = join(tempDir('tdd-gate-probity-'), 'probity.mjs')
   writeFileSync(
     script,
     `import { readFileSync } from 'node:fs'
@@ -96,7 +96,7 @@ for (const file of ['acme-api/build/generated/InvoiceRecord.kt', 'docs/acme-note
 
 test('a project without a config is left alone', () => {
   // Given
-  const project = mkdtempSync(join(tmpdir(), 'tdd-gate-bare-'))
+  const project = tempDir('tdd-gate-bare-')
 
   // When
   const { stdout } = runHook(project, 'src/main/kotlin/Invoice.kt')

@@ -1,10 +1,10 @@
 import { before, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'duplication-gate.mjs')
 
@@ -32,7 +32,7 @@ before(() => execFileSync('npx', ['-y', 'jscpd@5.4.0', '--version'], { stdio: 'i
  * project-relative path to its content.
  */
 function gitProject(config, base, branch = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'duplication-gate-project-'))
+  const dir = tempDir('duplication-gate-project-')
   const write = (files) => {
     for (const [file, content] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, file)), { recursive: true })
@@ -40,7 +40,7 @@ function gitProject(config, base, branch = {}) {
     }
   }
   write({ '.claude/skrymer-ai.config.mjs': config, ...base })
-  const origin = mkdtempSync(join(tmpdir(), 'duplication-gate-origin-'))
+  const origin = tempDir('duplication-gate-origin-')
   git(origin, 'init', '-q', '--bare', '-b', 'main')
   git(dir, 'init', '-q', '-b', 'main')
   git(dir, 'add', '-A')
@@ -313,7 +313,7 @@ test('without origin/HEAD or origin/main to compare with, the test is let throug
 
 /** A stand-in for jscpd, run as `node` on a script holding [body]. */
 function fakeJscpd(body) {
-  const script = join(mkdtempSync(join(tmpdir(), 'duplication-gate-jscpd-')), 'jscpd.cjs')
+  const script = join(tempDir('duplication-gate-jscpd-'), 'jscpd.cjs')
   writeFileSync(script, body)
   return `node ${script}`
 }
@@ -338,7 +338,7 @@ test('a scan that outlasts its time limit is let through with the limit named', 
 
 test('a project without a config is left alone', () => {
   // Given
-  const project = mkdtempSync(join(tmpdir(), 'duplication-gate-project-'))
+  const project = tempDir('duplication-gate-project-')
 
   // When / Then
   silent(runHook(project, newKotlinTest))
@@ -572,7 +572,7 @@ test('a jscpd that fails without a word is named by its exit code', () => {
 test('a scan past its time limit is killed with every process it started', () => {
   // Given
   const project = gitProject(kotlinConfig, kotlinClone.base, kotlinClone.branch)
-  const pidFile = join(mkdtempSync(join(tmpdir(), 'duplication-gate-pid-')), 'pid')
+  const pidFile = join(tempDir('duplication-gate-pid-'), 'pid')
   const jscpd = fakeJscpd(
     `const child = require('node:child_process').spawn('sleep', ['30'], { stdio: 'ignore' }); require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(child.pid)); setTimeout(() => {}, 30000)`
   )
@@ -585,11 +585,46 @@ test('a scan past its time limit is killed with every process it started', () =>
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
 })
 
-test('on a first run with jscpd not yet downloaded, the test is let through and the download said', () => {
-  // Given
-  const project = gitProject(kotlinConfig, kotlinClone.base, kotlinClone.branch)
-  const emptyCache = mkdtempSync(join(tmpdir(), 'duplication-gate-npm-cache-'))
+/**
+ * A dir holding an `npx` that passes an `--offline` run to the real npx, so npm itself answers
+ * the cache lookup, and writes any other run's arguments to [record] instead of downloading: a
+ * real download runs on in the background, past the test and its cleanup.
+ */
+function recordingNpx(record) {
+  const bin = tempDir('duplication-gate-bin-')
+  const realNpx = execFileSync('which', ['npx'], { encoding: 'utf8' }).trim()
+  writeFileSync(
+    join(bin, 'npx'),
+    `#!/usr/bin/env node
+const args = process.argv.slice(2)
+if (args.includes('--offline')) process.exit(require('node:child_process').spawnSync(${JSON.stringify(realNpx)}, args, { stdio: 'inherit' }).status ?? 1)
+require('node:fs').writeFileSync(${JSON.stringify(record)}, args.join(' '))
+`,
+    { mode: 0o755 }
+  )
+  return bin
+}
 
-  // When / Then
-  skippedWith(runHook(project, newKotlinTest, { npm_config_cache: emptyCache }), 'jscpd@5\\.4\\.0 is downloading for its first run; the next new test is checked$')
+/** The content of [file] once something writes it, waiting up to five seconds. */
+function eventually(file) {
+  for (let waited = 0; waited < 5000; waited += 50) {
+    if (existsSync(file)) return readFileSync(file, 'utf8')
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+  }
+  assert.fail(`nothing wrote ${file}`)
+}
+
+test('on a first run with jscpd not yet downloaded, the test is let through and the download started', () => {
+  // Given a project, an empty npm cache, and an npx that records the download rather than running it
+  const project = gitProject(kotlinConfig, kotlinClone.base, kotlinClone.branch)
+  const emptyCache = tempDir('duplication-gate-npm-cache-')
+  const record = join(tempDir('duplication-gate-download-'), 'args')
+  const bin = recordingNpx(record)
+
+  // When a new test is written
+  const run = runHook(project, newKotlinTest, { npm_config_cache: emptyCache, PATH: `${bin}:${process.env.PATH}` })
+
+  // Then the test is let through, saying jscpd is downloading, and the download of jscpd has started
+  skippedWith(run, 'jscpd@5\\.4\\.0 is downloading for its first run; the next new test is checked$')
+  assert.equal(eventually(record), '-y jscpd@5.4.0 --version')
 })

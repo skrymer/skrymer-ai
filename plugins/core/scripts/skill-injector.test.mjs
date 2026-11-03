@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'skill-injector.mjs')
 
 /** A temp project holding [config] as its project config and an empty directory per root. */
 function fixtureProject(config, roots = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-injector-project-'))
+  const dir = tempDir('skill-injector-project-')
   for (const root of roots) mkdirSync(join(dir, root), { recursive: true })
   if (config !== undefined) {
     mkdirSync(join(dir, '.claude'))

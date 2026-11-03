@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'format.mjs')
 
 /** A temp project holding [config] as its project config and the [files] it names, each empty. */
 function fixtureProject(config, files = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'format-project-'))
+  const dir = tempDir('format-project-')
   for (const file of files) {
     mkdirSync(dirname(join(dir, file)), { recursive: true })
     writeFileSync(join(dir, file), '')
@@ -36,7 +36,7 @@ const nuxtConfig = configOf(`{ stacks: { nuxt: { roots: ['acme-web'] } } }`)
  * `{ cwd, args }` per run.
  */
 function fakeCommands(commands, exitCode = 0) {
-  const bin = mkdtempSync(join(tmpdir(), 'format-bin-'))
+  const bin = tempDir('format-bin-')
   const log = join(bin, 'runs.jsonl')
   for (const command of commands) {
     const script = join(bin, command)

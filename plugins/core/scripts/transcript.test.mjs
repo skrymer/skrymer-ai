@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { git, runScript } from './git-fixture.mjs'
+import { tempDir } from './temp-dir.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'transcript.mjs')
 
@@ -20,7 +20,7 @@ const line = (entry) => `${JSON.stringify({ isSidechain: true, agentId: 'a1b2', 
  * [report], and a closing text line. [agentType] goes in the meta, unless it is null.
  */
 function transcript({ brief = BRIEF, report = REPORT, agentType = 'core:adversary', handback = true } = {}) {
-  const dir = join(mkdtempSync(join(tmpdir(), 'transcript-session-')), 'subagents')
+  const dir = join(tempDir('transcript-session-'), 'subagents')
   mkdirSync(dir)
   const path = join(dir, 'agent-a1b2.jsonl')
   const assistant = (content) => line({ type: 'assistant', message: { role: 'assistant', content } })
@@ -38,7 +38,7 @@ function transcript({ brief = BRIEF, report = REPORT, agentType = 'core:adversar
 
 /** A git project holding the adversary brief the renderer saved. */
 function project(saved = BRIEF) {
-  const dir = mkdtempSync(join(tmpdir(), 'transcript-project-'))
+  const dir = tempDir('transcript-project-')
   git(dir, 'init', '-q', '-b', 'main')
   mkdirSync(join(dir, '.git', 'skrymer-ai', 'sign-off', 'briefs'), { recursive: true })
   writeFileSync(join(dir, '.git', 'skrymer-ai', 'sign-off', 'briefs', 'adversary.txt'), saved)

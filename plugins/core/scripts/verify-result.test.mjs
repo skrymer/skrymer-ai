@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'verify-result.mjs')
 
@@ -36,7 +36,7 @@ Initech's order history.
  * default targets, and a stub `gh` that prints [issue] as issue 8's body and fails for any other.
  */
 function project({ targets, issue = ISSUE } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'verify-result-project-'))
+  const dir = tempDir('verify-result-project-')
   const verify = targets ? `, verify: { targets: ${JSON.stringify(targets)} }` : ''
   mkdirSync(join(dir, '.claude'))
   mkdirSync(join(dir, 'web'))

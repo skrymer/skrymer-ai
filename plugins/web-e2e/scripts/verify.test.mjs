@@ -1,17 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, utimesSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpSync, mkdirSync, rmSync, utimesSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from '../../core/scripts/temp-dir.mjs'
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url))
 const CORE = join(SCRIPTS, '..', '..', 'core')
 
 /** Runs the entrypoint at [script] in a fresh directory with [args]. */
 function verify(script, ...args) {
-  const run = spawnSync('node', [script, ...args], { cwd: mkdtempSync(join(tmpdir(), 'verify-cwd-')), encoding: 'utf8' })
+  const run = spawnSync('node', [script, ...args], { cwd: tempDir('verify-cwd-'), encoding: 'utf8' })
   return { status: run.status, out: run.stdout + run.stderr }
 }
 
@@ -20,7 +20,7 @@ function verify(script, ...args) {
  * of [cores], oldest first, as `<marketplace>/core/<version>/`.
  */
 function cache(pack, cores) {
-  const marketplace = mkdtempSync(join(tmpdir(), 'verify-cache-'))
+  const marketplace = tempDir('verify-cache-')
   cpSync(SCRIPTS, join(marketplace, 'web-e2e', pack, 'scripts'), { recursive: true })
   mkdirSync(join(marketplace, 'core'))
   cores.forEach((version, i) => {

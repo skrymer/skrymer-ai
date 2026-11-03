@@ -4,9 +4,9 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { tempDir } from './temp-dir.mjs'
 
 export const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
 
@@ -30,9 +30,9 @@ export function writeFiles(dir, files) {
  * branch with [branch] written on top and left uncommitted. A `null` in [branch] deletes the file.
  */
 export function gitProject(base, branch = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'git-project-'))
+  const dir = tempDir('git-project-')
   writeFiles(dir, base)
-  const origin = mkdtempSync(join(tmpdir(), 'git-origin-'))
+  const origin = tempDir('git-origin-')
   git(origin, 'init', '-q', '--bare', '-b', 'main')
   git(dir, 'init', '-q', '-b', 'main')
   git(dir, 'add', '-A')

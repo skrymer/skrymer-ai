@@ -1,10 +1,10 @@
 import { before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { tempDir } from '../../core/scripts/temp-dir.mjs'
 
 const PRESET = join(dirname(fileURLToPath(import.meta.url)), 'eslint-msw.mjs')
 const ESLINT = 'eslint@10.13.0'
@@ -14,7 +14,7 @@ before(() => execFileSync('npx', ['-y', ESLINT, '--version'], { stdio: 'ignore' 
 
 /** A temp project holding [files] and an eslint.config.mjs spreading the preset with [options]. */
 function fixture(files, options = '') {
-  const dir = mkdtempSync(join(tmpdir(), 'eslint-msw-'))
+  const dir = tempDir('eslint-msw-')
   const config = `import { mswBans } from ${JSON.stringify(pathToFileURL(PRESET).href)}\n\nexport default [...mswBans(${options})]\n`
   for (const [path, content] of Object.entries({ 'eslint.config.mjs': config, ...files })) {
     mkdirSync(dirname(join(dir, path)), { recursive: true })

@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScript } from './git-fixture.mjs'
+import { tempDir } from './temp-dir.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'pack-lint.mjs')
 
 /** A run dir holding two transcripts, a survivors file with two lines, a red log, and the pack given as its [sources] and [rows]. */
 function run(sources, rows) {
-  const dir = mkdtempSync(join(tmpdir(), 'pack-lint-'))
+  const dir = tempDir('pack-lint-')
   mkdirSync(join(dir, 'red'))
   writeFileSync(join(dir, 'reviewer.jsonl'), '{}\n')
   writeFileSync(join(dir, 'triager.jsonl'), '{}\n')

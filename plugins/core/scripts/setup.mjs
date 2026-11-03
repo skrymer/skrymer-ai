@@ -403,10 +403,13 @@ function diff({ path, before, after }) {
     writeFileSync(join(dir, prefix, path), content)
     return join(prefix, path)
   }
-  const args = ['-c', 'core.quotepath=off', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--no-prefix', '--', side('a', before), side('b', after)]
-  const { stdout } = spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
-  rmSync(dir, { recursive: true })
-  return stdout.slice(stdout.indexOf('\n--- ') + 1)
+  try {
+    const args = ['-c', 'core.quotepath=off', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--no-prefix', '--', side('a', before), side('b', after)]
+    const { stdout } = spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    return stdout.slice(stdout.indexOf('\n--- ') + 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 /** The plan as a person reads it: the stacks found, what to add to the config, and a diff of each change. */

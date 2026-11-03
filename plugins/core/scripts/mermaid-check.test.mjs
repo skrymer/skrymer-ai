@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScript } from './git-fixture.mjs'
+import { tempDir } from './temp-dir.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'mermaid-check.mjs')
 
@@ -19,7 +19,7 @@ const PARSE_ERROR = "Error: Parse error on line 2:\\n...b[[[\\n------^\\nExpecti
  * BROKEN, whether one block or a whole Markdown doc, and otherwise writes the output file.
  */
 function stubCli() {
-  const dir = mkdtempSync(join(tmpdir(), 'mermaid-cli-'))
+  const dir = tempDir('mermaid-cli-')
   const log = join(dir, 'calls.log')
   writeFileSync(
     join(dir, 'mmdc.mjs'),
@@ -43,7 +43,7 @@ writeFileSync(at('-o'), '<svg/>')
 
 /** A temp dir holding [files], each path to its content. */
 function docs(files) {
-  const dir = mkdtempSync(join(tmpdir(), 'mermaid-docs-'))
+  const dir = tempDir('mermaid-docs-')
   for (const [path, content] of Object.entries(files)) writeFileSync(join(dir, path), content)
   return dir
 }

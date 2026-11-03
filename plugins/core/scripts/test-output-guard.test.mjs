@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'test-output-guard.mjs')
 
 /** A temp project whose config enables kotlin-spring under `acme-api`. */
 function kotlinProject() {
-  const dir = mkdtempSync(join(tmpdir(), 'test-output-guard-project-'))
+  const dir = tempDir('test-output-guard-project-')
   mkdirSync(join(dir, 'acme-api'))
   mkdirSync(join(dir, '.claude'))
   writeFileSync(
@@ -67,7 +67,7 @@ for (const command of [
 
 test('a project without a config is left alone', () => {
   // Given
-  const project = mkdtempSync(join(tmpdir(), 'test-output-guard-bare-'))
+  const project = tempDir('test-output-guard-bare-')
 
   // When
   const { stdout } = runHook(project, './gradlew test | tail')

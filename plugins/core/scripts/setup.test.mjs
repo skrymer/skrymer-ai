@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { GIT_ENV, git, runScript } from './git-fixture.mjs'
+import { tempDir } from './temp-dir.mjs'
 
 const SETUP = join(dirname(fileURLToPath(import.meta.url)), 'setup.mjs')
 
@@ -17,7 +17,7 @@ const SPRING_BUILD = `plugins {
 
 /** A temp repo holding each of [files], a map of repo-relative path to content. */
 function fixtureRepo(files) {
-  const dir = mkdtempSync(join(tmpdir(), 'setup-repo-'))
+  const dir = tempDir('setup-repo-')
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true })
     writeFileSync(join(dir, path), content)

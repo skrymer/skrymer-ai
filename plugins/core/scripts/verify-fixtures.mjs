@@ -4,10 +4,10 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { tempDir } from './temp-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -85,7 +85,7 @@ const verifyBlock = (extra) => `{
  * [config] replaces the verify block; [files] adds files.
  */
 export function stackProject({ config = verifyBlock(''), files = {} } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'verify-project-'))
+  const dir = tempDir('verify-project-')
   const write = (all) => {
     for (const [file, content] of Object.entries(all)) {
       mkdirSync(dirname(join(dir, file)), { recursive: true })

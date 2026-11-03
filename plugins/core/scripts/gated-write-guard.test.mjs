@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'gated-write-guard.mjs')
 
 /** A temp project gating `acme-api/src/**\/*.kt` through kotlin-spring and `acme-web/app/**\/*.vue` itself. */
 function acmeProject() {
-  const dir = mkdtempSync(join(tmpdir(), 'gated-write-guard-project-'))
+  const dir = tempDir('gated-write-guard-project-')
   mkdirSync(join(dir, 'acme-api'))
   mkdirSync(join(dir, '.claude'))
   writeFileSync(
@@ -201,7 +201,7 @@ test('the deny says how to change a copy or read the file from a script instead'
 
 test('a project without a config is left alone', () => {
   // Given
-  const project = mkdtempSync(join(tmpdir(), 'gated-write-guard-bare-'))
+  const project = tempDir('gated-write-guard-bare-')
 
   // When
   const { stdout } = runHook(project, 'echo y >> src/main/kotlin/Invoice.kt')

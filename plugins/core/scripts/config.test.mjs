@@ -1,16 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
+import { tempDir } from './temp-dir.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** A temp project holding [config] as its project config and an empty directory per root. */
 function fixtureProject(config, roots = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'config-project-'))
+  const dir = tempDir('config-project-')
   for (const root of roots) mkdirSync(join(dir, root), { recursive: true })
   mkdirSync(join(dir, '.claude'))
   writeFileSync(join(dir, '.claude', 'skrymer-ai.config.mjs'), config)
@@ -38,7 +38,7 @@ test('a stack with no such pack is an error naming the pack and the packs there 
 
 test('a stack named when no packs are installed beside core says there are none', async () => {
   // Given a core installed alone and a config naming a pack
-  const lonelyCore = join(mkdtempSync(join(tmpdir(), 'config-plugins-')), 'core')
+  const lonelyCore = join(tempDir('config-plugins-'), 'core')
   mkdirSync(lonelyCore)
   writeFileSync(join(lonelyCore, 'skrymer-ai.pack.mjs'), 'export default {}\n')
   const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'] } } }`), ['acme-web'])

@@ -1,17 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'session-context.mjs')
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** A temp project holding [config] as its project config and an empty directory per path in [dirs]. */
 function fixtureProject(config, dirs = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'session-context-project-'))
+  const dir = tempDir('session-context-project-')
   for (const path of dirs) mkdirSync(join(dir, path), { recursive: true })
   if (config !== undefined) {
     mkdirSync(join(dir, '.claude'))
