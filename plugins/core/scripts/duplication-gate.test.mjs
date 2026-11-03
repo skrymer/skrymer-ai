@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { GIT_ENV, git, gitProject as fixture } from './git-fixture.mjs'
 import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'duplication-gate.mjs')
@@ -16,42 +17,12 @@ export default defineConfig(${body})
 
 const kotlinConfig = configOf(`{ stacks: { 'kotlin-spring': { roots: ['acme-api'] } } }`)
 
-/** Git without the developer's own config, so a global signing key or hook can't reach the fixtures. */
-const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
-
-const git = (cwd, ...args) =>
-  execFileSync('git', ['-c', 'user.email=dev@acme.test', '-c', 'user.name=dev', ...args], { cwd, stdio: 'pipe', env: { ...process.env, ...GIT_ENV } })
-
 // The deny tests run the real jscpd through npx, so its first download happens before them,
 // not inside one test's time limit.
 before(() => execFileSync('npx', ['-y', 'jscpd@5.4.0', '--version'], { stdio: 'ignore' }))
 
-/**
- * A temp project in a git repo whose `origin` has [base] on `main`, checked out on a feature
- * branch with [branch] written on top and left uncommitted. Each of [base] and [branch] maps a
- * project-relative path to its content.
- */
-function gitProject(config, base, branch = {}) {
-  const dir = tempDir('duplication-gate-project-')
-  const write = (files) => {
-    for (const [file, content] of Object.entries(files)) {
-      mkdirSync(dirname(join(dir, file)), { recursive: true })
-      writeFileSync(join(dir, file), content)
-    }
-  }
-  write({ '.claude/skrymer-ai.config.mjs': config, ...base })
-  const origin = tempDir('duplication-gate-origin-')
-  git(origin, 'init', '-q', '--bare', '-b', 'main')
-  git(dir, 'init', '-q', '-b', 'main')
-  git(dir, 'add', '-A')
-  git(dir, 'commit', '-qm', 'base')
-  git(dir, 'remote', 'add', 'origin', origin)
-  git(dir, 'push', '-q', 'origin', 'main')
-  git(dir, 'remote', 'set-head', 'origin', 'main')
-  git(dir, 'switch', '-qc', 'feature')
-  write(branch)
-  return dir
-}
+/** A git project as `gitProject` makes one, with [config] as its project config. */
+const gitProject = (config, base, branch = {}) => fixture({ '.claude/skrymer-ai.config.mjs': config, ...base }, branch)
 
 /** A Kotlin class named [name] whose one function is long enough to count as a clone of another. */
 const kotlinClass = (name) => `package acme

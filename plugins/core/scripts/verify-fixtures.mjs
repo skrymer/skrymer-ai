@@ -3,16 +3,14 @@
  * commands and a stand-in dev server, and a way to run a script in it.
  */
 
-import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { GIT_ENV, git, writeFiles } from './git-fixture.mjs'
 import { tempDir } from './temp-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-
-/** Git without the developer's own config, so a global signing key or hook can't reach the fixtures. */
-export const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
 
 /** Appends its first argument and `ACME_FLAG` to `calls.log` in the directory it runs in. */
 const RECORD = `
@@ -86,13 +84,7 @@ const verifyBlock = (extra) => `{
  */
 export function stackProject({ config = verifyBlock(''), files = {} } = {}) {
   const dir = tempDir('verify-project-')
-  const write = (all) => {
-    for (const [file, content] of Object.entries(all)) {
-      mkdirSync(dirname(join(dir, file)), { recursive: true })
-      writeFileSync(join(dir, file), content)
-    }
-  }
-  write({
+  writeFiles(dir, {
     '.claude/skrymer-ai.config.mjs': `export default { stacks: { 'web-e2e': { roots: ['web'], verify: ${config} } } }\n`,
     'record.mjs': RECORD,
     'web/mint.mjs': MINT,
@@ -100,7 +92,7 @@ export function stackProject({ config = verifyBlock(''), files = {} } = {}) {
     '.gitignore': 'calls.log\n.env\n',
     ...files,
   })
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir, env: { ...process.env, ...GIT_ENV } })
+  git(dir, 'init', '-q', '-b', 'main')
   return dir
 }
 

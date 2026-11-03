@@ -18,11 +18,11 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { unifiedDiff } from './unified-diff.mjs'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const HANDBACK = 'SubagentHandback'
@@ -98,17 +98,7 @@ function callLine({ name, input = {} }) {
 }
 
 /** [after] against [before] as a unified diff of the two briefs. */
-function diff(before, after) {
-  const dir = mkdtempSync(join(tmpdir(), 'transcript-diff-'))
-  try {
-    writeFileSync(join(dir, 'rendered'), before)
-    writeFileSync(join(dir, 'sent'), after)
-    const { stdout } = spawnSync('git', ['diff', '--no-index', '--no-color', '--', 'rendered', 'sent'], { cwd: dir, encoding: 'utf8' })
-    return stdout.slice(stdout.indexOf('\n--- ') + 1)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
+const diff = (before, after) => unifiedDiff({ from: 'a/rendered', before, to: 'b/sent', after })
 
 function git(cwd, ...args) {
   const run = spawnSync('git', args, { cwd, encoding: 'utf8' })

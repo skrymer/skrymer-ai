@@ -11,10 +11,10 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { unifiedDiff } from './unified-diff.mjs'
 import { CONFIG_PATH, PACK_FILE, STAGED, availablePacks, loadConfig, mergeConfig, packDir } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -394,23 +394,8 @@ async function plan(projectDir) {
   return { stacks: stacks.map(({ pack, roots }) => ({ pack, roots })), notes, unreadable, changes, git, hand, skipped }
 }
 
-/** [change] as a unified diff, from git so a person reads the format they know. */
-function diff({ path, before, after }) {
-  const dir = mkdtempSync(join(tmpdir(), 'skrymer-ai-setup-'))
-  const side = (prefix, content) => {
-    if (content === null) return '/dev/null'
-    mkdirSync(dirname(join(dir, prefix, path)), { recursive: true })
-    writeFileSync(join(dir, prefix, path), content)
-    return join(prefix, path)
-  }
-  try {
-    const args = ['-c', 'core.quotepath=off', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--no-prefix', '--', side('a', before), side('b', after)]
-    const { stdout } = spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
-    return stdout.slice(stdout.indexOf('\n--- ') + 1)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
+/** [change] as a unified diff. */
+const diff = ({ path, before, after }) => unifiedDiff({ from: `a/${path}`, before, to: `b/${path}`, after })
 
 /** The plan as a person reads it: the stacks found, what to add to the config, and a diff of each change. */
 function render({ stacks, notes, unreadable, changes, git, hand, skipped }) {

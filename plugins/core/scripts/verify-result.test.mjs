@@ -3,16 +3,11 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
+import { GIT_ENV, git } from './git-fixture.mjs'
 import { tempDir } from './temp-dir.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'verify-result.mjs')
-
-/** Git without the developer's own config, so a global signing key or hook can't reach the fixtures. */
-const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
-
-const git = (cwd, ...args) =>
-  execFileSync('git', ['-c', 'user.email=dev@acme.test', '-c', 'user.name=dev', ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...GIT_ENV } }).trim()
 
 const ISSUE = `## What to build
 
