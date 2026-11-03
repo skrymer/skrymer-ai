@@ -16,7 +16,8 @@
  *
  * Fails open, and says so: a scan that can't run lets the write through with
  * "duplication-gate skipped: …" to the user and the agent, so a skipped scan never reads as a
- * clean one (ADR 0008).
+ * clean one (ADR 0008). With config errors it says so only for a write that adds a test to any
+ * installed pack's test files, wherever they sit, since the session start already names the errors.
  */
 
 import { spawn } from 'node:child_process'
@@ -25,7 +26,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { branchOf } from './branch.mjs'
-import { loadConfig } from './config.mjs'
+import { availablePacks, loadConfig, loadPack, packDir } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const JSCPD = 'jscpd@5.4.0'
@@ -40,12 +41,12 @@ async function main() {
   if (typeof input.file_path !== 'string') return
   const projectDir = process.env.CLAUDE_PROJECT_DIR
   const { config, errors } = await loadConfig(projectDir, PLUGIN_ROOT)
-  if (errors) throw new Error('the project config has errors; the session start names them')
-  if (!config) return
+  if (!config && !errors) return
   const file = inside(projectDir, input.file_path)
   if (file === null) return
-  const writing = config.duplication.filter(({ tests }) => tests.some((glob) => matchesGlob(file, glob)))
-  if (!writing.length || !addsTest(input, writing)) return
+  const writing = testsAdded(input, file, errors ? await anyPackTests() : config.duplication)
+  if (!writing.length) return
+  if (errors) throw new Error('the project config has errors; the session start names them')
   const packs = new Set(writing.map((stack) => stack.pack))
   const stacks = config.duplication.filter((stack) => packs.has(stack.pack))
   const dirs = scanDirs(projectDir, stacks, config.tdd.files)
@@ -62,6 +63,31 @@ function inside(dir, file) {
   const path = relative(dir, file)
   return path.startsWith('..') || isAbsolute(path) ? null : path
 }
+
+/** The [stacks] whose tests [file] is, when the pending Write or Edit [input] adds a test there; else none. */
+function testsAdded(input, file, stacks) {
+  const writing = stacks.filter(({ tests, anyDepth }) => tests.some((glob) => (anyDepth ? tails(file) : [file]).some((path) => matchesGlob(path, glob))))
+  return writing.length && addsTest(input, writing) ? writing : []
+}
+
+/**
+ * Every installed pack's tests, to be matched at any depth, for a config with errors: its roots
+ * can't be known, and a project can't change a pack's test globs, so these cover every test it
+ * could scan. A pack that doesn't import is left out; its own error is what the session start names.
+ */
+async function anyPackTests() {
+  const packs = await Promise.allSettled(availablePacks(PLUGIN_ROOT).map((pack) => loadPack(packDir(PLUGIN_ROOT, pack))))
+  return packs
+    .map((pack) => pack.value?.duplication)
+    .filter((duplication) => Array.isArray(duplication?.tests))
+    .map(({ tests, declaration }) => ({ declaration, tests, anyDepth: true }))
+}
+
+/**
+ * [path] and each path it ends in (`a/b/c.kt`, `b/c.kt`, `c.kt`): a root-relative glob matched
+ * at any depth, where `**\/glob` would skip a root inside a dot-directory.
+ */
+const tails = (path) => path.split('/').map((_, i, parts) => parts.slice(i).join('/'))
 
 /**
  * Whether a pending Write or Edit leaves more test declarations, as [stacks] declare them,
