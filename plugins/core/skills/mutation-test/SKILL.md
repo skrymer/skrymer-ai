@@ -9,7 +9,7 @@ Coverage says a line ran. Mutation testing asks whether any test would have **no
 change**. The engine rewrites the source one mutant at a time and re-runs the tests that cover
 it. A mutant that survives is a line no assertion pins.
 
-Each pack brings its stack's engine: pitest for `kotlin-spring`, StrykerJS for `nuxt`. The
+Each pack brings its stack's engine: pitest for `kotlin-spring`, StrykerJS for `nuxt` and `react`. The
 **sweep script** does the scoping, running and survivor extraction:
 `node <base>/../../scripts/mutation.mjs`, where `<base>` is this skill's base directory. Run it
 from the project root. Never retype its steps as shell. A shell variable that didn't survive

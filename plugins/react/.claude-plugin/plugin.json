@@ -1,0 +1,8 @@
+{
+  "name": "react",
+  "description": "React frontend pack: the React playbook, the Testing Library component-testing conventions, the stack's default rule fragments and its Prettier + ESLint formatter.",
+  "author": {
+    "name": "skrymer"
+  },
+  "dependencies": ["core"]
+}
