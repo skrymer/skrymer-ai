@@ -406,3 +406,50 @@ test('e2e support code under a web-e2e root needs only the Playwright practices'
   // Then
   assert.equal(stdout, '')
 })
+
+const reactConfig = `
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  stacks: { react: { roots: ['acme-web'] } },
+})
+`
+
+test('a React component test under a react root is denied until react:component-testing and react:frontend-dev are loaded', () => {
+  // Given a project with a react root at acme-web/
+  const project = fixtureProject(reactConfig, ['acme-web'])
+
+  // When a component test beside its component is written with no skill loaded
+  const { stdout } = runHook(project, 'acme-web/src/components/InvoiceList.test.tsx')
+
+  // Then the denial names the component-testing skill and the playbook
+  const reason = JSON.parse(stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /\/react:component-testing and \/react:frontend-dev/)
+})
+
+test('a React component test under a react root is allowed once its skills are loaded', () => {
+  // Given a project with a react root at acme-web/
+  const project = fixtureProject(reactConfig, ['acme-web'])
+
+  // When a component test is written with both skills loaded
+  const { status, stdout } = runHook(
+    project,
+    'acme-web/src/components/InvoiceList.test.tsx',
+    transcript(skillCall('react:component-testing'), skillCall('react:frontend-dev'))
+  )
+
+  // Then the write passes
+  assert.equal(status, 0)
+  assert.equal(stdout, '')
+})
+
+test('a Playwright spec under a react root is not a component test', () => {
+  // Given a project with a react root at acme-web/
+  const project = fixtureProject(reactConfig, ['acme-web'])
+
+  // When a spec under its e2e/ is written with no skill loaded
+  const { stdout } = runHook(project, 'acme-web/e2e/invoices.spec.ts')
+
+  // Then the react pack asks for nothing
+  assert.equal(stdout, '')
+})

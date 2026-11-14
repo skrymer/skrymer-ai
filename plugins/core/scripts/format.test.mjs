@@ -105,6 +105,23 @@ test('editing a JSON file under a nuxt root runs prettier alone', () => {
   assert.deepEqual(runs(), [{ cwd: join(project, 'acme-web'), args: [...prettier, join(project, 'acme-web/i18n/en.json')] }])
 })
 
+test('writing a .tsx file under a react root runs prettier then eslint on it, in the root', () => {
+  // Given a project with a react root at acme-web/ holding a component
+  const project = fixtureProject(configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`), ['acme-web/src/components/InvoiceList.tsx'])
+  const { bin, runs } = fakeCommands(['pnpm'])
+
+  // When the component is written
+  const { status } = runHook(project, 'acme-web/src/components/InvoiceList.tsx', bin)
+
+  // Then prettier and then eslint --fix run on it, in the root
+  assert.equal(status, 0)
+  const file = join(project, 'acme-web/src/components/InvoiceList.tsx')
+  assert.deepEqual(runs(), [
+    { cwd: join(project, 'acme-web'), args: [...prettier, file] },
+    { cwd: join(project, 'acme-web'), args: ['pnpm', 'exec', 'eslint', '--fix', file] },
+  ])
+})
+
 test('a file outside every root is untouched', () => {
   // Given
   const project = fixtureProject(nuxtConfig, ['acme-web/app/app.vue', 'acme-docs/Overview.vue'])
