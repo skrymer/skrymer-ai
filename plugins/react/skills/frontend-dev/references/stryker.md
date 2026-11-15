@@ -11,15 +11,16 @@ stack root and reads `reports/mutation/mutation.json`. The scope is the changed 
 report path names its own in the config:
 `stacks: { react: { roots: [...], mutation: { run: [...'{targets}'...], report } } }`.
 
-The project's `stryker.config.json` needs:
+The project's `stryker.config.json` needs this, the TypeScript checker lines aside, which are optional:
 
 ```json
 {
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner", "@stryker-mutator/typescript-checker"],
-  "vitest": { "configFile": "vitest.config.ts" },
+  "vitest": { "configFile": "vite.config.ts" },
   "checkers": ["typescript"],
-  "tsconfigFile": "tsconfig.app.json"
+  "tsconfigFile": "tsconfig.app.json",
+  "concurrency": 2
 }
 ```
 
@@ -30,8 +31,13 @@ The project's `stryker.config.json` needs:
   `@stryker-mutator/typescript-checker` and point `tsconfigFile` at the tsconfig that includes
   `src/` (a Vite project's root tsconfig only holds references). If the sweep is too slow,
   drop it from `checkers` and `plugins` and drop `tsconfigFile`.
-- **Start with Stryker's default concurrency**, and drop it if the machine swaps: each worker
-  holds its own Vitest worker with a jsdom environment.
+- **`vitest.configFile` names the file that holds the `test` block**: `vite.config.ts` in most
+  Vite apps, `vitest.config.ts` where the project keeps one apart.
+- **Pin `concurrency` low.** The sweep runs Stryker under a 10G memory cap with no swap, and
+  Stryker's default is a worker per core less one, each a Vitest runner with jsdom, plus a
+  checker each when the TypeScript checker is on. Past the cap the run is killed, and the sweep
+  reports that the engine wrote no report (exit 143). Start at 2 and raise it only while a
+  sweep stays under the cap.
 
 ## Budget
 
@@ -62,7 +68,7 @@ many minutes, so always go through the scope.
 
 Re-run a survivor's line alone before triaging it, under the same cap the sweep uses (its log
 prints the full command):
-`systemd-run --user --scope -p MemoryMax=10G -- pnpm exec stryker run --mutate "src/utils/cart.ts:14-14"`. A scoped sweep can leave survivors
+`systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -- pnpm exec stryker run --mutate "src/utils/cart.ts:14-14" --reporters json,clear-text`. A scoped sweep can leave survivors
 that a targeted re-run kills. `killedBy` in `mutation.json` says which test killed a mutant.
 Check it for a mutant you wrote a test for, because a kill by an unrelated test can come from
 state leaked between tests.
