@@ -124,13 +124,13 @@ test('a worktree-scoped project rule says once to invoke the worktree’s scoped
 })
 
 test('an invalid config lets the prompt through and tells the user why no skills were injected', () => {
-  // Given
+  // Given a config naming a pack that is not installed
   const project = fixtureProject(configOf(`{ stacks: { 'acme-stack': { roots: ['.'] } } }`))
 
-  // When
+  // When a prompt is submitted
   const { status, stdout } = runHook(project, submit('Fix the Acme tests'))
 
-  // Then
+  // Then the prompt passes and the user is told why the injector is off
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage:

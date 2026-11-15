@@ -25,13 +25,13 @@ export default defineConfig(${body})
 `
 
 test('a stack with no such pack is an error naming the pack and the packs there are', async () => {
-  // Given
+  // Given a config naming a pack that is not installed
   const project = fixtureProject(configOf(`{ stacks: { 'acme-stack': { roots: ['acme-api'] } } }`), ['acme-api'])
 
-  // When
+  // When the config is loaded
   const result = await loadConfig(project, PLUGIN_ROOT)
 
-  // Then
+  // Then the error names the pack and the packs installed beside core
   assert.deepEqual(result, {
     errors: [`stacks: there is no pack "acme-stack". Packs available: ${MARKETPLACE_PACKS}.`],
   })
