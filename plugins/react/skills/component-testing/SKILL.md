@@ -37,8 +37,9 @@ describe('OrderSummary', () => {
 - Run Vitest with `environment: 'jsdom'` (or `happy-dom`) and register the `jest-dom`
   matchers (`toBeVisible`, `toHaveTextContent`, `toBeDisabled`, …) once, in the setup file,
   with `import '@testing-library/jest-dom/vitest'`.
-- Testing Library unmounts between tests only when Vitest's `globals` is on. Without globals,
-  call `cleanup()` in an `afterEach` in the setup file, or rendered trees leak into the next test.
+- Turn on Vitest's `globals`. Testing Library registers its `cleanup` and React's act
+  environment through the global `afterEach` and `beforeAll`; without them rendered trees leak
+  into the next test and React never warns about an update outside `act`.
 - **Render through the app's providers.** A component that reads a router, a query client, a
   theme or a store needs them. Give the project one `renderWithProviders` (a custom `render`
   with a `wrapper`) and use it everywhere, never a provider tree rebuilt per test. Make a fresh
@@ -61,9 +62,10 @@ Find elements the way a user or assistive technology would. Prefer, in order:
 
 ## Interactions
 
-Drive interaction with `@testing-library/user-event`, never `fireEvent`. It reproduces real
+Drive interaction with `@testing-library/user-event`, not `fireEvent`. It reproduces real
 user behaviour: focus, key sequences, pointer events. Call `userEvent.setup()` once per test,
-before rendering, and `await` every interaction.
+before rendering, and `await` every interaction. The one exception is a test on fake timers,
+below.
 
 ## Async and `act`
 
@@ -72,8 +74,13 @@ before rendering, and `await` every interaction.
   wait for what it renders with `findBy*` or `waitFor`, never by wrapping more code in `act`.
 - `waitFor` retries one assertion until it passes. Put a single expectation in it, and no side
   effects, since it runs many times.
-- **With fake timers, hand them to user-event**:
-  `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`, or every interaction hangs.
+- **Advance fake timers inside `act`**: `act(() => vi.advanceTimersByTime(3000))`. Outside it,
+  React has not committed the update when the next line asserts, so a correct component fails
+  and a "not yet" check passes whatever the code does.
+- **Under fake timers, assert synchronously.** `findBy*`, `waitFor` and user-event wait on
+  timers of their own, which Vitest's fake timers freeze, so they hang until the test times out.
+  Interact before faking the clock, or fire the one event with `fireEvent` inside `act`, then
+  advance and assert with `getBy*` / `queryBy*`.
 
 ## Conventions
 
@@ -85,12 +92,12 @@ before rendering, and `await` every interaction.
   states at once.
 - **Pin a time threshold on both sides**: at n − 1 it has not fired, at n it has. "Gave up by
   8 s" alone passes a 3 s timeout. For a timer started on mount, fake only `setTimeout` /
-  `clearTimeout` before rendering and advance them by hand, not with `shouldAdvanceTime`,
-  which leaks render time into the clock and flakes under load.
+  `clearTimeout` before rendering and advance them by hand inside `act`, not with
+  `shouldAdvanceTime`, which leaks render time into the clock and flakes under load.
 - **A "did not happen" assertion is only as late as the reaction it waits for.** When a change
   defers a reaction (a timer, a debounce, an effect), every test asserting that the reaction
-  did *not* happen must let it run (`vi.useFakeTimers()` + `vi.runAllTimers()`) before
-  asserting, or it passes whatever the code does. Re-audit those tests in the same change.
+  did *not* happen must let it run (`vi.useFakeTimers()`, then
+  `act(() => vi.runAllTimers())`) before asserting, or it passes whatever the code does. Re-audit those tests in the same change.
 - **`rerender(<Foo … />)` keeps state**, since it is the same component instance. To test a
   fresh mount with other props, `unmount()` and `render` again, or put the state under test
   into the first render.
@@ -107,7 +114,7 @@ before rendering, and `await` every interaction.
 | Avoid                                                   | Use instead                                  |
 | ------------------------------------------------------- | -------------------------------------------- |
 | `getByTestId` for something with a role or visible text | `getByRole` / `getByText`                    |
-| `fireEvent.click(el)`                                   | `await user.click(el)`                       |
+| `fireEvent.click(el)` (outside a fake-timer test)       | `await user.click(el)`                       |
 | `container.querySelector(...)`                          | Testing Library queries                      |
 | Wrapping code in `act` to silence a warning             | `findBy*` / `waitFor` on what it renders     |
 | Asserting on classes or element structure               | Assert on visible text, roles, state         |

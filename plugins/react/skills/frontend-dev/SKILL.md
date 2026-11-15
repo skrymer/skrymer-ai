@@ -120,9 +120,6 @@ rule. Go back to the token; don't loosen the guard.
   host's zone and CI in UTC, so an assertion there passes code that sends the UTC date. Run
   the mocked browser in a fixed non-UTC zone, start the clock where the two days differ, and
   assert the product on screen.
-- **Adding a query param breaks every `page.route` glob that ends at the path.** End route
-  globs with `**`, and grep the e2e tree for routes on a path whenever its request gains a
-  param. The failure shows as a timeout, not a routing error.
 - **A failed refetch can drop what the screen showed.** Check what the data layer hands back
   on error, and keep the last good value where losing it costs something.
 - **Extract Component moves a lifetime, not just code.** State the moved code owns now lives
