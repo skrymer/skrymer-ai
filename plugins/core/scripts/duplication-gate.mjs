@@ -151,8 +151,9 @@ async function findClones(projectDir, dirs, ignore, formats) {
   const out = mkdtempSync(join(tmpdir(), 'duplication-gate-'))
   try {
     const config = join(out, 'jscpd.json')
-    writeFileSync(config, '{}')
-    await runJscpd(projectDir, ['-c', config, '-f', formats.join(','), '-k', String(MIN_TOKENS), ...(ignore.length ? ['-i', ignore.join(',')] : []), '-a', '-s', '-r', 'json', '-o', out, ...dirs.map((dir) => join(projectDir, dir))])
+    // The ignore globs go in the config, since jscpd splits `-i` on every comma, braces and all.
+    writeFileSync(config, JSON.stringify({ ignore }))
+    await runJscpd(projectDir, ['-c', config, '-f', formats.join(','), '-k', String(MIN_TOKENS), '-a', '-s', '-r', 'json', '-o', out, ...dirs.map((dir) => join(projectDir, dir))])
     const report = JSON.parse(readFileSync(join(out, 'jscpd-report.json'), 'utf8'))
     // A Vue file's halves are named `File.vue:html` and `File.vue:typescript`.
     const side = ({ name, start, end }) => ({ file: relative(projectDir, name.replace(/:\w+$/, '')), start, end })
