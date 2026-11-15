@@ -664,3 +664,38 @@ test('on a first run with jscpd not yet downloaded, the test is let through and 
   skippedWith(run, 'jscpd@5\\.4\\.0 is downloading for its first run; the next new test is checked$')
   assert.equal(eventually(npx.download), '-y jscpd@5.4.0 --version\n')
 })
+
+/** A React component test named for [name], long enough that two of them count as a clone. */
+const reactTest = (name) => `import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { ${name} } from './${name}'
+
+describe('${name}', () => {
+  it('lists each line with its total', () => {
+    const lines = [{ id: 1, price: 4, quantity: 2 }, { id: 2, price: 7, quantity: 1 }, { id: 3, price: 2, quantity: 5 }]
+    render(<${name} lines={lines} currency="EUR" />)
+    expect(screen.getByRole('row', { name: /1 8/ })).toBeVisible()
+    expect(screen.getByRole('row', { name: /2 7/ })).toBeVisible()
+    expect(screen.getByRole('row', { name: /3 10/ })).toBeVisible()
+  })
+})
+`
+
+test('copies among React tests, whose glob holds commas, are left out of the scan', () => {
+  // Given a react root whose branch adds a near-copy of an existing component test
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`),
+    { 'acme-web/src/components/InvoiceList.test.tsx': reactTest('InvoiceList') },
+    { 'acme-web/src/components/OrderList.test.tsx': reactTest('OrderList') }
+  )
+
+  // When another component test is written
+  const { status, stdout } = runHook(project, {
+    file_path: 'acme-web/src/components/CustomerList.test.tsx',
+    content: reactTest('CustomerList'),
+  })
+
+  // Then the copied tests do not block it
+  assert.equal(status, 0)
+  assert.equal(stdout, '')
+})
