@@ -110,7 +110,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
         continue
       }
       for (const rule of fragment.skills?.files ?? []) {
-        files.push({ ...rule, path: new RegExp(`(^|/)${rootPrefix(root)}(?:${rule.path.source})`) })
+        files.push({ ...rule, path: new RegExp(`^${rootPrefix(root)}(?:${rule.path.source})`) })
       }
       for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
       if (groups?.length) format.push({ root: trimRoot(root), groups })
