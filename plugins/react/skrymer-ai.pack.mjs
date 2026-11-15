@@ -23,7 +23,10 @@ export default {
     ['pnpm', 'build'],
     ['pnpm', 'test'],
   ],
-  lint: (read) => (usesLintStaged(read) ? [['pnpm', 'exec', 'lint-staged']] : [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}']]),
+  lint: (read) => {
+    if (usesLintStaged(read)) return [['pnpm', 'exec', 'lint-staged']]
+    return usesFlatConfig(read) ? [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}']] : [['pnpm', 'lint']]
+  },
   ci: (root, read) => {
     const at = (file) => (root ? `${root}/${file}` : file)
     const pinned = /^pnpm@/.test(json(read('package.json'))?.packageManager ?? '')
@@ -99,6 +102,15 @@ function usesLintStaged(read) {
   if (LINT_STAGED_CONFIGS.some((file) => read(file) !== null)) return true
   return json(read('package.json'))?.['lint-staged'] !== undefined
 }
+
+const FLAT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts', 'eslint.config.cts']
+
+/**
+ * Whether the root [read] reads from is on ESLint flat config. A legacy `.eslintrc` ESLint has no
+ * `--no-warn-ignored` and would lint every staged file, package.json included, so it runs the
+ * root's own lint script instead.
+ */
+const usesFlatConfig = (read) => FLAT_CONFIGS.some((file) => read(file) !== null)
 
 /** [text] parsed as JSON, or null when there is none or it doesn't parse. */
 function json(text) {
