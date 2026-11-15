@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
+import { MARKETPLACE_PACKS } from './marketplace-packs.mjs'
 import { tempDir } from './temp-dir.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -32,7 +33,7 @@ test('a stack with no such pack is an error naming the pack and the packs there 
 
   // Then
   assert.deepEqual(result, {
-    errors: ['stacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt, react, web-e2e.'],
+    errors: [`stacks: there is no pack "acme-stack". Packs available: ${MARKETPLACE_PACKS}.`],
   })
 })
 

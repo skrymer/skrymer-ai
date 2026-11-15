@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { MARKETPLACE_PACKS } from './marketplace-packs.mjs'
 import { tempDir } from './temp-dir.mjs'
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'skill-injector.mjs')
@@ -133,7 +134,7 @@ test('an invalid config lets the prompt through and tells the user why no skills
   assert.equal(status, 0)
   assert.deepEqual(JSON.parse(stdout), {
     systemMessage:
-      'skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: kotlin-spring, nuxt, react, web-e2e.',
+      `skrymer-ai: the skill injector is off until the project config is fixed:\nstacks: there is no pack "acme-stack". Packs available: ${MARKETPLACE_PACKS}.`,
   })
 })
 
