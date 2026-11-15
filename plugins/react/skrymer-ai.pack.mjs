@@ -1,9 +1,10 @@
 /**
  * The react pack's default rule fragment. Each `path`, TDD glob and format glob is relative to
  * a stack root the project config names, so a project states only its roots. `/core:setup`
- * proposes a root wherever `detect` finds a package.json depending on React, and enables the
- * `lsp` plugins. A test command matches within one shell command. A prompt rule matches the
- * words of a prompt, whatever the roots. The formatter runs in the root, so the root's own
+ * proposes a root wherever `detect` finds a package.json depending on React (in its
+ * dependencies or devDependencies, not an override or a peer), and enables the `lsp` plugins.
+ * A test command matches within one shell command. A prompt rule matches the words of a
+ * prompt, whatever the roots. The formatter runs in the root, so the root's own
  * Prettier and ESLint configs apply; a project on another package manager or toolchain replaces
  * it with its stack's own `format`, and likewise `check`, the build and tests the sign-off and CI
  * run in the root, `lint`, what the pre-commit hook runs when the root has staged files, and
@@ -14,7 +15,7 @@
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
 export default {
-  detect: { files: ['package.json'], contains: /"react"\s*:/ },
+  detect: { files: ['package.json'], contains: /"(?:dependencies|devDependencies)"\s*:\s*\{[^}]*"react"\s*:/ },
   lsp: ['typescript-lsp@claude-plugins-official'],
   test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'],
   check: [
@@ -77,7 +78,7 @@ export default {
     files: [
       {
         id: 'react-test',
-        path: /(?:src|test|tests)\/.+\.(?:test|spec)\.[cm]?[jt]sx?$/,
+        path: /(?:src|test)\/.+\.(?:test|spec)\.[cm]?[jt]sx?$/,
         skills: ['react:component-testing'],
         why: 'A Vitest test renders with Testing Library and queries by role, per the testing conventions.',
       },

@@ -127,8 +127,9 @@ test('each pack proposes a root wherever its marker file is, outside dependency 
 })
 
 test('a package.json that depends on React marks a react root, and a Nuxt app’s does not', () => {
-  // Given a React app, a Nuxt app, and a React package inside a dependency tree
+  // Given a React app, a Nuxt app, a workspace top that only overrides React's version, and a React package inside a dependency tree
   const repo = fixtureRepo({
+    'package.json': JSON.stringify({ private: true, pnpm: { overrides: { react: '19.1.0' } } }),
     'apps/dashboard/package.json': JSON.stringify({ dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' } }),
     'web/package.json': JSON.stringify({ dependencies: { nuxt: '^4.0.0', vue: '^3.5.0' } }),
     'web/nuxt.config.ts': 'export default defineNuxtConfig({})\n',
@@ -138,7 +139,7 @@ test('a package.json that depends on React marks a react root, and a Nuxt app’
   // When the planner plans
   const plan = planOf(repo)
 
-  // Then the React app is a react root, and the Nuxt app is a nuxt root only
+  // Then only the React app is a react root, and the Nuxt app is a nuxt root only
   assert.deepEqual(plan.stacks, [
     { pack: 'nuxt', roots: ['web'] },
     { pack: 'react', roots: ['apps/dashboard'] },

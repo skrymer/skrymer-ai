@@ -453,3 +453,34 @@ test('a Playwright spec under a react root is not a component test', () => {
   // Then the react pack asks for nothing
   assert.equal(stdout, '')
 })
+
+test('a react root at the project top claims only its own src/, not one deeper in another stack', () => {
+  // Given a project whose react root is the top, with a Kotlin service below it
+  const project = fixtureProject(
+    `
+import { defineConfig } from 'skrymer-ai'
+
+export default defineConfig({
+  stacks: { react: { roots: ['.'] } },
+})
+`,
+    ['api']
+  )
+
+  // When a Kotlin file under the service's own src/ is written with no skill loaded
+  const { stdout } = runHook(project, 'api/src/main/kotlin/Invoice.kt')
+
+  // Then the react pack asks for nothing
+  assert.equal(stdout, '')
+})
+
+test('a Playwright spec under a react root’s tests/ is not a component test', () => {
+  // Given a project with a react root at acme-web/
+  const project = fixtureProject(reactConfig, ['acme-web'])
+
+  // When a spec under tests/, Playwright's default test directory, is written with no skill loaded
+  const { stdout } = runHook(project, 'acme-web/tests/invoices.spec.ts')
+
+  // Then the react pack asks for nothing
+  assert.equal(stdout, '')
+})
