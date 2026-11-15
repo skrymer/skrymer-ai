@@ -8,11 +8,10 @@ A Claude Code plugin marketplace holding one AI-assisted development workflow, s
 |---|---|
 | `core` | Process skills (tdd, grill-me, grill-with-docs, to-prd, to-issues, triage, handoff, diagnose, prototype, improve-codebase-architecture, check-adrs, feature-sign-off, mutation-test, write-a-skill, setup) and the hook engines (skill injection, skill gate, duplication gate, gated-write guard, test-output guard, formatter, Probity TDD gate) |
 | `kotlin-spring` | Kotlin / Spring Boot backend playbook, pitest, Detekt, Gradle conventions |
-| `react` | React playbook, component testing, Stryker, ESLint/Prettier |
+| `react` | React playbook, Testing Library component-testing conventions, Vitest paths, Stryker, Prettier + ESLint formatter |
 | `sindri` | Consumer guide for the Sindri component library (sourced from its own repo) |
 | `web-e2e` | Playwright best practices, MSW as the one way tests fake the API (with an ESLint preset refusing the alternatives), `/web-e2e:verify`, which walks an issue's acceptance criteria in a headless browser at each configured viewport and records a result per AC (with `--explore`, a break-it tester then drives charters beyond the ACs), and the default rules for e2e specs, tests and mock handlers |
 | `nuxt` | Nuxt / Vue playbook, component-testing conventions, Vitest paths, Prettier + ESLint formatter |
-| `react` | React playbook, Testing Library component-testing conventions, Vitest paths, Prettier + ESLint formatter |
 
 ## Adopting it
 
@@ -93,7 +92,7 @@ Every judgement in the run (the mutant triager's verdict on each survivor, the c
 
 The committed hook and workflow can't call into the plugin, since its path differs on every machine and CI doesn't have it, so `/core:setup` bakes each stack root's commands into them. Each pack has two commands, and a stack can replace either with its own `lint` or `check`:
 
-- **`lint`** is fast and runs in `.githooks/pre-commit`, only for roots with staged files (`kotlin-spring`: `./gradlew detekt`; `nuxt`: `pnpm exec eslint` on the root's staged files and `pnpm typecheck`, or `pnpm exec lint-staged` when the root configures lint-staged; `react` the same without the type check). A command whose last word is `{staged}` gets the root's staged files, relative to the root:
+- **`lint`** is fast and runs in `.githooks/pre-commit`, only for roots with staged files (`kotlin-spring`: `./gradlew detekt`; `nuxt`: `pnpm exec eslint` on the root's staged files and `pnpm typecheck`, or `pnpm exec lint-staged` when the root configures lint-staged; `react` the same without the type check, and its own `pnpm lint` on a legacy `.eslintrc`). A command whose last word is `{staged}` gets the root's staged files, relative to the root:
 
   ```js
   stacks: { nuxt: { roots: ['web'], lint: [['npx', 'biome', 'check', '{staged}']] } }
