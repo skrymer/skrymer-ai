@@ -52,7 +52,7 @@ async function main() {
   const dirs = scanDirs(projectDir, stacks, config.tdd.files)
   if (!dirs.length) return
   const changes = branchChanges(projectDir)
-  const ignore = config.duplication.flatMap((stack) => stack.tests)
+  const ignore = [...config.duplication.flatMap((stack) => stack.tests), ...config.tdd.ignore]
   const formats = [...new Set(stacks.flatMap((stack) => stack.formats))]
   const cross = [...new Set(stacks.flatMap((stack) => stack.crossFormats ?? []))]
   const clones = (await findClones(projectDir, dirs, ignore, formats, cross)).filter((pair) => pair.some((side) => changes.touches(side)))

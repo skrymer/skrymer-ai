@@ -56,7 +56,7 @@ function measure(projectDir) {
   if (!changed.length) throw new Stop(`the branch holds no change since ${base.slice(0, 7)}. Nothing was measured, so this is not a skip.`)
   const onDisk = changed.filter((file) => existsSync(join(projectDir, file)))
   const scopeOf = (stack) =>
-    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && !stack.tests.some((glob) => matchesGlob(file, glob)))
+    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && ![...stack.tests, ...stack.ignore].some((glob) => matchesGlob(file, glob)))
   return { ...branch, scopeOf }
 }
 

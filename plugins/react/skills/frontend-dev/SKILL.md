@@ -11,6 +11,11 @@ hand off to `feature-sign-off` at the end. It **links** the project's canonical 
 them. A project's own domain rules live in its project skills, which the project config can
 require alongside this one.
 
+Paths here are a Vite app's, under `src/`. In a Next.js, Remix or Expo app read them from its
+top-level folders instead (`app/`, `components/`, `hooks/`, `lib/`, `utils/`); the gates cover
+both. A generated file the TDD gate should leave alone, such as an API client, goes in the
+project config's `tdd.ignore`.
+
 ## Architecture rules
 
 - **Present, don't compute.** Every derived number and domain verdict comes from the

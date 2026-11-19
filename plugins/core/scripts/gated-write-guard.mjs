@@ -24,9 +24,9 @@ const CD = /\bcd\s+(['"]?)([^\s;&|'"]+)\1/g
  * Whether [token], a path as the command names it, is a gated file of the project, read
  * from the shell's directory or from any directory the command changes into.
  */
-function isGated(token, command, { projectDir, cwd, globs }) {
+function isGated(token, command, { projectDir, cwd, globs, ignore }) {
   const dirs = [cwd, ...[...command.matchAll(CD)].map(([, , dir]) => resolve(cwd, dir))]
-  return dirs.some((dir) => isTddGated(projectDir, resolve(dir, token), globs))
+  return dirs.some((dir) => isTddGated(projectDir, resolve(dir, token), globs, ignore))
 }
 
 /** A `sed` or `perl` in-place edit, its flag spelled `-i`, `-Ei`, `-i.bak`, `-pi` or `--in-place`. */
@@ -135,7 +135,7 @@ async function main() {
     return
   }
   if (!config) return
-  const offending = offendingPaths(command, { projectDir, cwd: payload.cwd ?? projectDir, globs: config.tdd.files })
+  const offending = offendingPaths(command, { projectDir, cwd: payload.cwd ?? projectDir, globs: config.tdd.files, ignore: config.tdd.ignore })
   if (offending.length === 0) return
   process.stdout.write(
     JSON.stringify({

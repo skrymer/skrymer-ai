@@ -217,3 +217,30 @@ test('a sweep for a pack the project does not enable names the ones it can run',
   assert.equal(status, 1)
   assert.match(out, /no stack "react" with a mutation engine\. Stacks: kotlin-spring \(api\), nuxt \(web\)/)
 })
+
+test('the plan leaves out what the TDD gate ignores: a pack’s stories and generated code, and the project’s own list', () => {
+  // Given a react root whose branch changes a component, its story, a generated route tree and a generated API schema the project ignores
+  const config = `export default {
+  stacks: { react: { roots: ['web'], mutation: { run: ['node', 'engine.mjs', 'out/mutation.json', '--mutate', '{targets}'], report: 'out/mutation.json' } } },
+  tdd: { ignore: ['web/src/api/schema.ts'] },
+}
+`
+  const base = { '.claude/skrymer-ai.config.mjs': config, 'web/engine.mjs': ENGINE, 'web/package.json': '{}', 'README.md': '# acme\n' }
+  const dir = gitProject(
+    {
+      'web/src/components/Button.tsx': 'export {}\n',
+      'web/src/components/Button.stories.tsx': 'export {}\n',
+      'web/src/routeTree.gen.ts': 'export {}\n',
+      'web/src/api/schema.ts': 'export {}\n',
+    },
+    base
+  )
+
+  // When the plan runs
+  const { status, out } = sweep(dir)
+
+  // Then only the component is in react's scope
+  assert.equal(status, 0, out)
+  assert.match(out, /react \(web\): 1 file/)
+  assert.doesNotMatch(out, /stories|routeTree|schema/)
+})

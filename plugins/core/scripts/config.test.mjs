@@ -573,6 +573,29 @@ test('a pack naming the stryker engine gets core’s Stryker parsing', async () 
   assert.equal(config.mutation.length, 2)
 })
 
+test('the TDD gate ignores each pack’s ignore globs under its roots, and the project’s own', async () => {
+  // Given a react root and a project ignore list
+  const project = fixtureProject(configOf(`{ stacks: { react: { roots: ['acme-web'] } }, tdd: { ignore: ['acme-web/src/api/schema.ts'] } }`), ['acme-web'])
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the ignore list holds react's stories glob under the root, and the project's path
+  assert.ok(config.tdd.ignore.includes('acme-web/**/*.stories.{ts,tsx,js,jsx}'), config.tdd.ignore.join(', '))
+  assert.ok(config.tdd.ignore.includes('acme-web/src/api/schema.ts'))
+})
+
+test('a project tdd.ignore that is not a list of globs is an error', async () => {
+  // Given a project whose ignore list is a single string
+  const project = fixtureProject(configOf(`{ tdd: { ignore: 'dist/**' } }`))
+
+  // When the config is loaded
+  const result = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then the error names the field
+  assert.deepEqual(result, { errors: ['tdd.ignore: expected a list of globs.'] })
+})
+
 test('a mutation override with a run that never names the targets, a bad report or a bad memory cap is an error per field', async () => {
   // Given a nuxt stack whose override would sweep the whole surface, names no report path and caps memory in words
   const project = fixtureProject(
