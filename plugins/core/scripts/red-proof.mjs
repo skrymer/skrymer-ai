@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { loadConfig } from './config.mjs'
+import { escapeRegex, loadConfig } from './config.mjs'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const PLUGIN_ROOT = join(dirname(SCRIPT), '..')
@@ -65,7 +65,7 @@ async function main(argv, projectDir) {
       if (existsSync(modules) && !existsSync(join(copy, dir, 'node_modules'))) symlinkSync(modules, join(copy, dir, 'node_modules'), 'dir')
     }
     const inTop = resolve(projectDir, file).slice(top.length + 1)
-    const pattern = `${test.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`
+    const pattern = `${escapeRegex(test)}$`
     const [command, ...args] = stack.run.map((word) => word.replaceAll('{testPattern}', pattern).replaceAll('{test}', test))
     const out = resolve(top, git(projectDir, 'rev-parse', '--git-path', 'skrymer-ai/red'))
     mkdirSync(out, { recursive: true })

@@ -14,9 +14,9 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { nodeToolchain } from './toolchains.mjs'
+import { TOOLCHAINS } from './toolchains.mjs'
 import { unifiedDiff } from './unified-diff.mjs'
-import { CONFIG_PATH, STAGED, availablePacks, loadConfig, loadPack, mergeConfig, packDir } from './config.mjs'
+import { CONFIG_PATH, STAGED, availablePacks, loadConfig, loadPack, mergeConfig, packDir, readIn } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MARKETPLACE = 'skrymer-ai'
@@ -289,15 +289,6 @@ function scalar(value) {
 const sh = (word) => (/^[\w./=:@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`)
 const words = (command) => command.map(sh).join(' ')
 
-/** A reader of the files under [root] in [projectDir]: a path relative to it maps to the file's text, or null. */
-const readerIn = (projectDir, root) => (path) => {
-  try {
-    return readFileSync(join(projectDir, root, path), 'utf8')
-  } catch {
-    return null
-  }
-}
-
 /** `git [args]` in [cwd], kept to its output, or null when git fails. */
 function gitIn(cwd, ...args) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
@@ -351,8 +342,9 @@ async function plan(projectDir) {
   const lint = config?.lint ?? []
   const jobs = (config?.check ?? []).map((stack) => {
     const fragment = packs.find(({ name }) => name === stack.pack)?.fragment
-    if (fragment?.toolchain === 'node') return { ...stack, steps: nodeToolchain(stack.root, readerIn(projectDir, stack.root), readerIn(projectDir, '')).ci() }
-    return { ...stack, steps: fragment?.ci ? fragment.ci(stack.root, readerIn(projectDir, stack.root)) : [] }
+    const toolchain = TOOLCHAINS[fragment?.toolchain]
+    if (toolchain) return { ...stack, steps: toolchain.at(stack.root, join(projectDir, stack.root), projectDir).ci() }
+    return { ...stack, steps: fragment?.ci ? fragment.ci(stack.root, readIn(join(projectDir, stack.root))) : [] }
   })
   const github = config?.tracker.kind === 'github'
   const skipped = jobs.length && config && !github ? [`${WORKFLOW_PATH}: the workflow is GitHub Actions only, and tracker.kind is "${config.tracker.kind}".`] : []

@@ -1,9 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { nodeToolchain } from './toolchains.mjs'
+import { tempDir } from './temp-dir.mjs'
 
-/** A `read` over a directory holding [files], a map of relative path to content. */
-const dirOf = (files = {}) => (file) => files[file] ?? null
+/** A temp directory holding [files], a map of file name to content. */
+function dirOf(files = {}) {
+  const dir = tempDir('toolchain-')
+  for (const [file, content] of Object.entries(files)) writeFileSync(join(dir, file), content)
+  return dir
+}
 
 const pin = (packageManager) => JSON.stringify({ packageManager })
 
@@ -119,4 +126,16 @@ test('the pre-commit lint is lint-staged when the root configures it, else the p
 
   // Then the first runs lint-staged and the second the pack's ESLint, each through npm
   assert.deepEqual(found, [[['npm', 'exec', '--', 'lint-staged']], [['npm', 'exec', '--', 'eslint', '--no-warn-ignored', '{staged}']]])
+})
+
+test('a script named through pnpm run, and a binary fetched through pnpm dlx, translate to each manager’s own', () => {
+  // Given an npm root and a yarn root
+  const npm = nodeToolchain('web', dirOf({ 'package.json': '{}', 'package-lock.json': '{}' }), dirOf())
+  const yarn = nodeToolchain('web', dirOf({ 'package.json': '{}', 'yarn.lock': '' }), dirOf())
+
+  // When pnpm run and pnpm dlx commands are translated
+  const found = [npm.command(['pnpm', 'run', 'build']), npm.command(['pnpm', 'dlx', 'jscpd']), yarn.command(['pnpm', 'run', 'build']), yarn.command(['pnpm', 'dlx', 'jscpd'])]
+
+  // Then the script runs once, not as `run run`, and the fetched binary runs through npx or yarn dlx
+  assert.deepEqual(found, [['npm', 'run', 'build'], ['npx', '--yes', 'jscpd'], ['yarn', 'build'], ['yarn', 'dlx', 'jscpd']])
 })
