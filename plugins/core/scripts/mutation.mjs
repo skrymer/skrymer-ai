@@ -38,14 +38,17 @@ async function main([command, pack, root], projectDir) {
   if (errors) throw new Stop(`the project config has errors:\n${errors.map((error) => `  ${error}`).join('\n')}`)
   if (!config) throw new Stop('the project has no skrymer-ai config. /core:setup writes one.')
   if (!config.mutation.length) throw new Stop('no stack in the project config has a mutation engine.')
-  const branch = measure(projectDir)
+  const branch = measure(projectDir, config.tdd.ignore)
   if (command === undefined) return plan(config.mutation, branch)
   if (command === 'run') return sweep(stackOf(config.mutation, pack, root), branch, projectDir)
   throw new Stop(`unknown command "${command}". Usage: mutation.mjs [run <pack> [root]]`)
 }
 
-/** The branch as `changedOnBranch` measures it, plus each stack's scope among the changed files still on disk. */
-function measure(projectDir) {
+/**
+ * The branch as `changedOnBranch` measures it, plus each stack's scope among the changed files
+ * still on disk, leaving out tests and what the TDD gate [ignore]s.
+ */
+function measure(projectDir, ignore) {
   let branch
   try {
     branch = changedOnBranch(projectDir, (warning) => process.stdout.write(`warning: ${warning}\n`))
@@ -56,7 +59,7 @@ function measure(projectDir) {
   if (!changed.length) throw new Stop(`the branch holds no change since ${base.slice(0, 7)}. Nothing was measured, so this is not a skip.`)
   const onDisk = changed.filter((file) => existsSync(join(projectDir, file)))
   const scopeOf = (stack) =>
-    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && ![...stack.tests, ...stack.ignore].some((glob) => matchesGlob(file, glob)))
+    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && ![...stack.tests, ...ignore].some((glob) => matchesGlob(file, glob)))
   return { ...branch, scopeOf }
 }
 

@@ -8,7 +8,7 @@ import { registerHooks } from 'node:module'
 import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ENGINES } from './engines.mjs'
-import { nodeToolchain } from './toolchains.mjs'
+import { TOOLCHAINS } from './toolchains.mjs'
 
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
 export const PACK_FILE = 'skrymer-ai.pack.mjs'
@@ -99,7 +99,8 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
       continue
     }
     const fragment = await loadPack(dir)
-    testCommands.push(...(fragment.tdd?.testCommands ?? []))
+    const toolchain = TOOLCHAINS[fragment.toolchain]
+    testCommands.push(...(fragment.tdd?.testCommands ?? []), ...(toolchain?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
     const engine = fragment.mutation && { ...ENGINES[fragment.mutation.engine], ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
@@ -112,42 +113,37 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
         errors.push(`stacks.${pack}.roots: "${root}" does not exist in the project.`)
         continue
       }
-      // A Node pack's own commands are written for pnpm; a stack's own run as the project wrote them.
-      const node = fragment.toolchain === 'node' ? nodeToolchain(trimRoot(root), readIn(join(projectDir, root)), readIn(projectDir)) : null
-      const ours = (commands, own) => (node && own === undefined ? commands?.map(node.command) : commands)
+      const under = (globs = []) => globs.map((glob) => `${globPrefix(root)}${glob}`)
+      // A pack's own commands go through its toolchain; a stack's own run as the project wrote them.
+      const chain = toolchain?.at(trimRoot(root), join(projectDir, root), projectDir)
+      const ours = (command, own) => (chain && own === undefined && command ? chain.command(command) : command)
       for (const rule of fragment.skills?.files ?? []) {
         files.push({ ...rule, path: new RegExp(`^${rootPrefix(root)}(?:${rule.path.source})`) })
       }
-      for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
-      for (const glob of fragment.tdd?.ignore ?? []) tddIgnore.push(`${globPrefix(root)}${glob}`)
-      if (groups?.length) format.push({ root: trimRoot(root), groups: node && stack.format === undefined ? groups.map((group) => ({ ...group, run: ours(group.run) })) : groups })
+      tdd.push(...under(fragment.tdd?.files))
+      tddIgnore.push(...under(fragment.tdd?.ignore))
+      if (groups?.length) format.push({ root: trimRoot(root), groups: groups.map((group) => ({ ...group, run: group.run.map((command) => ours(command, stack.format)) })) })
       if (Array.isArray(fragment.duplication?.tests)) {
         const { tests, ...rest } = fragment.duplication
-        duplication.push({ ...rest, pack, root: trimRoot(root), tests: tests.map((glob) => `${globPrefix(root)}${glob}`) })
+        duplication.push({ ...rest, pack, root: trimRoot(root), tests: under(tests) })
       }
       if (engine) {
-        const under = (globs) => globs.map((glob) => `${globPrefix(root)}${glob}`)
         const notes = engine.notes && join(dir, engine.notes)
-        mutation.push({ ...engine, run: ours(engine.run && [engine.run], stack.mutation?.run)?.[0], pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
+        mutation.push({ ...engine, run: ours(engine.run, stack.mutation?.run), pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests) })
       }
       if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
-      if (build?.length) check.push({ pack, root: trimRoot(root), run: ours(build, stack.check) })
+      if (build?.length) check.push({ pack, root: trimRoot(root), run: build.map((command) => ours(command, stack.check)) })
       const hook = typeof linted === 'function' ? linted(readIn(join(projectDir, root))) : linted
-      const staged = node && stack.lint === undefined && hook ? node.lint(hook) : hook
-      if (staged?.length) lint.push({ pack, root: trimRoot(root), run: staged })
-      if (one) test.push({ pack, root: trimRoot(root), run: ours(one && [one], stack.test)?.[0] })
+      if (hook?.length) {
+        // Only the pre-commit hook reads a root's lint, so whether it runs lint-staged is looked up then.
+        const run = chain && stack.lint === undefined ? () => chain.lint(hook) : () => hook
+        lint.push({ pack, root: trimRoot(root), get run() { return run() } })
+      }
+      if (one) test.push({ pack, root: trimRoot(root), run: ours(one, stack.test) })
     }
   }
-  const projectTdd = project.tdd?.files ?? []
-  if (listOf(projectTdd, (glob) => typeof glob === 'string')) {
-    tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
-  } else errors.push('tdd.files: expected a list of globs.')
-  const projectIgnore = project.tdd?.ignore ?? []
-  if (listOf(projectIgnore, (glob) => typeof glob === 'string')) {
-    tddIgnore.push(...projectIgnore.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
-  } else errors.push('tdd.ignore: expected a list of globs.')
-  // What the TDD gate ignores is no mutable source either.
-  for (const stack of mutation) stack.ignore = tddIgnore
+  tdd.push(...projectGlobs(project.tdd?.files, 'tdd.files', errors))
+  tddIgnore.push(...projectGlobs(project.tdd?.ignore, 'tdd.ignore', errors))
   for (const rule of rules(project.skills?.files, 'skills.files', errors)) {
     const path = toRegex(rule.path, '', `skills.files "${rule.id}": path`, errors)
     if (path) files.push({ ...rule, path })
@@ -261,8 +257,15 @@ function validLint(commands, label, errors) {
 /** The word in a lint command that stands for the root's staged files. */
 export const STAGED = '{staged}'
 
+/** [globs], the project's list under [label], each without a leading `./`, or none with an error when it isn't a list of globs. */
+function projectGlobs(globs = [], label, errors) {
+  if (listOf(globs, (glob) => typeof glob === 'string')) return globs.map((glob) => glob.replace(/^(?:\.\/+)+/, ''))
+  errors.push(`${label}: expected a list of globs.`)
+  return []
+}
+
 /** A reader of the files under [dir]: a path relative to it maps to the file's text, or null when it can't be read. */
-function readIn(dir) {
+export function readIn(dir) {
   return (path) => {
     try {
       return readFileSync(join(dir, path), 'utf8')

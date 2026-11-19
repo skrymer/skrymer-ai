@@ -40,7 +40,7 @@ export default {
       '**/test/{setup,utils}.{ts,tsx,js,jsx}',
       '**/__mocks__/**',
     ],
-    testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/],
+    testCommands: [/\bvitest\b/],
   },
   format: [
     { files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'], run: [prettier, ['pnpm', 'exec', 'eslint', '--fix']] },

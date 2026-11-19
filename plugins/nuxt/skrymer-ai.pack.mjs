@@ -29,7 +29,7 @@ export default {
   ],
   tdd: {
     files: ['app/**/*.{ts,vue}', 'server/**/*.ts', 'shared/**/*.ts'],
-    testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/],
+    testCommands: [/\bvitest\b/],
   },
   format: [
     { files: ['**/*.{js,mjs,cjs,ts,mts,cts,vue}'], run: [prettier, ['pnpm', 'exec', 'eslint', '--fix']] },

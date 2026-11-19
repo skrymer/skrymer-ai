@@ -10,8 +10,13 @@ const UNDETECTED = new Set(['Survived', 'NoCoverage'])
 const INVALID = new Set(['CompileError', 'RuntimeError', 'Ignored'])
 const REPLACEMENT_CAP = 80
 
-/** Every mutant in a Stryker `mutation.json` [json], with the file it is in. */
-const strykerMutants = (json) => Object.entries(JSON.parse(json).files).flatMap(([file, { mutants }]) => mutants.map((mutant) => ({ file, ...mutant })))
+let parsed = { json: null, mutants: [] }
+
+/** Every mutant in a Stryker `mutation.json` [json], with the file it is in; the sweep counts and then lists them, so the last report is kept parsed. */
+function strykerMutants(json) {
+  if (parsed.json !== json) parsed = { json, mutants: Object.entries(JSON.parse(json).files).flatMap(([file, { mutants }]) => mutants.map((mutant) => ({ file, ...mutant }))) }
+  return parsed.mutants
+}
 
 export const ENGINES = {
   stryker: {
