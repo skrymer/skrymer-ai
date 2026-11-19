@@ -851,7 +851,7 @@ test('a react root on npm runs the pack’s commands through npm, and a stack’
   const react = (list) => list.find(({ pack }) => pack === 'react')
   assert.deepEqual(react(config.check).run, [['npm', 'run', 'lint'], ['npm', 'run', 'build'], ['npm', 'run', 'test']])
   assert.deepEqual(react(config.lint).run, [['npm', 'exec', '--', 'eslint', '--no-warn-ignored', '{staged}']])
-  assert.deepEqual(react(config.test).run, ['npm', 'exec', '--', 'vitest', 'run', '-t', '{test}'])
+  assert.deepEqual(react(config.test).run, ['npm', 'exec', '--', 'vitest', 'run', '-t', '{testPattern}'])
   assert.deepEqual(config.format.find(({ root }) => root === 'acme-web').groups[0].run[0], ['npm', 'exec', '--', 'prettier', '--write', '--log-level', 'warn'])
   assert.deepEqual(react(config.mutation).run.slice(0, 5), ['npm', 'exec', '--', 'stryker', 'run'])
   assert.deepEqual(config.check.find(({ pack }) => pack === 'nuxt').run, [['pnpm', 'run', 'ci:globex']])
@@ -934,6 +934,6 @@ test('a stack test command without {test} is an error showing the shape', async 
 
   // Then the error says the command needs {test}
   assert.deepEqual(result, {
-    errors: ["stacks.nuxt.test: expected a command as a list of words, one holding {test}, such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}']."],
+    errors: ["stacks.nuxt.test: expected a command as a list of words, one holding {test} (the name) or {testPattern} (a regex matching it alone), such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{testPattern}']."],
   })
 })
