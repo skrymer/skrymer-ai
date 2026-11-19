@@ -318,3 +318,29 @@ for (const command of [
     assert.equal(result, true)
   })
 }
+
+/** A temp project with a react root at `acme-web`, whose `src/` is gated. */
+function reactProject() {
+  const dir = tempDir('gated-write-guard-project-')
+  mkdirSync(join(dir, 'acme-web'))
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude', 'skrymer-ai.config.mjs'), "export default { stacks: { react: { roots: ['acme-web'] } } }\n")
+  return dir
+}
+
+for (const command of [
+  "sed -i 's/a/b/' 'acme-web/src/app/blog/[slug]/page.tsx'",
+  "echo x > 'acme-web/src/routes/posts.$postId.tsx'",
+  "sed -i 's/a/b/' 'acme-web/src/app/(marketing)/about/page.tsx'",
+]) {
+  test(`\`${command}\` is denied, its route characters and all`, () => {
+    // Given a project with a react root
+    const project = reactProject()
+
+    // When a shell command writes a gated route file whose name holds brackets, a dollar or parentheses
+    const found = denied(project, command)
+
+    // Then it is denied like any other gated file
+    assert.equal(found, true)
+  })
+}
