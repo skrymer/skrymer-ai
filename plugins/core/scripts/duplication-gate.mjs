@@ -54,7 +54,8 @@ async function main() {
   const changes = branchChanges(projectDir)
   const ignore = config.duplication.flatMap((stack) => stack.tests)
   const formats = [...new Set(stacks.flatMap((stack) => stack.formats))]
-  const clones = (await findClones(projectDir, dirs, ignore, formats)).filter((pair) => pair.some((side) => changes.touches(side)))
+  const cross = [...new Set(stacks.flatMap((stack) => stack.crossFormats ?? []))]
+  const clones = (await findClones(projectDir, dirs, ignore, formats, cross)).filter((pair) => pair.some((side) => changes.touches(side)))
   if (clones.length) process.stdout.write(JSON.stringify(refusal(clones, writing)))
 }
 
@@ -142,18 +143,19 @@ function branchChanges(projectDir) {
 }
 
 /**
- * The clones jscpd finds in [dirs], leaving out files [ignore] matches, in [formats], each a
+ * The clones jscpd finds in [dirs], leaving out files [ignore] matches, in [formats] and across
+ * each group of [cross] (jscpd's `--cross-formats` groups, such as its `js-ts` preset), each a
  * pair of project-relative `{ file, start, end }`. It runs with a config of core's own, so a
  * project's jscpd config can't change what is scanned or how jscpd exits. A clone of nothing
  * but preamble, or between style blocks, is left out.
  */
-async function findClones(projectDir, dirs, ignore, formats) {
+async function findClones(projectDir, dirs, ignore, formats, cross) {
   const out = mkdtempSync(join(tmpdir(), 'duplication-gate-'))
   try {
     const config = join(out, 'jscpd.json')
     // The ignore globs go in the config, since jscpd splits `-i` on every comma, braces and all.
     writeFileSync(config, JSON.stringify({ ignore }))
-    await runJscpd(projectDir, ['-c', config, '-f', formats.join(','), '-k', String(MIN_TOKENS), '-a', '-s', '-r', 'json', '-o', out, ...dirs.map((dir) => join(projectDir, dir))])
+    await runJscpd(projectDir, ['-c', config, '-f', formats.join(','), ...(cross.length ? ['--cross-formats', cross.join(';')] : []), '-k', String(MIN_TOKENS), '-a', '-s', '-r', 'json', '-o', out, ...dirs.map((dir) => join(projectDir, dir))])
     const report = JSON.parse(readFileSync(join(out, 'jscpd-report.json'), 'utf8'))
     // A Vue file's halves are named `File.vue:html` and `File.vue:typescript`.
     const side = ({ name, start, end }) => ({ file: relative(projectDir, name.replace(/:\w+$/, '')), start, end })
