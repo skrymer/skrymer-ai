@@ -726,3 +726,33 @@ import { formatMoney, formatDate } from '@/lib/format'
   assert.equal(status, 0)
   assert.equal(stdout, '')
 })
+
+test('code copied from a .ts util into a .tsx component is a clone', () => {
+  // Given a react root whose branch copies a util's body into a component
+  const body = `  let sum = 0
+  for (const line of lines) {
+    if (line.quantity > 10) {
+      sum += line.price * line.quantity * 0.9
+    } else {
+      sum += line.price * line.quantity
+    }
+  }
+  return Math.round(sum * 1.25 * 100) / 100
+`
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`),
+    { 'acme-web/src/utils/cart.ts': `export function totalWithTax(lines: { price: number; quantity: number }[]) {\n${body}}\n` },
+    { 'acme-web/src/components/Cart.tsx': `export function Cart({ lines }: { lines: { price: number; quantity: number }[] }) {\n${body.replace('return ', 'const total = ')}  return <p>{total}</p>\n}\n` }
+  )
+
+  // When a test for the component is written
+  const { stdout } = runHook(project, {
+    file_path: 'acme-web/src/components/Cart.test.tsx',
+    content: "import { it } from 'vitest'\n\nit('shows the total', () => {})\n",
+  })
+
+  // Then the copy across the two formats blocks it
+  const out = JSON.parse(stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /acme-web\/src\/\w+\/\w+\.tsx?:\d+ ↔ acme-web\/src\/\w+\/\w+\.tsx?:\d+/)
+})
