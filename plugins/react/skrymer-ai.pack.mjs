@@ -27,7 +27,7 @@ export default {
   lint: (read) => (usesFlatConfig(read) ? [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}']] : [['pnpm', 'lint']]),
   tdd: {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
-    testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test\b/],
+    testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/],
   },
   format: [
     { files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'], run: [prettier, ['pnpm', 'exec', 'eslint', '--fix']] },
