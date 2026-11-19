@@ -45,11 +45,8 @@ export default {
   mutation: {
     engine: 'stryker',
     source: ['app/**/*.{ts,vue}', 'server/**/*.ts', 'shared/**/*.ts'],
-    targets: (files) => files,
     run: ['pnpm', 'exec', 'stryker', 'run', '--mutate', '{targets}', '--reporters', 'json,clear-text'],
     report: 'reports/mutation/mutation.json',
-    mutants: (json) => Object.values(JSON.parse(json).files).reduce((sum, { mutants }) => sum + mutants.length, 0),
-    survivors: strykerSurvivors,
     memory: '10G',
     notes: 'skills/frontend-dev/references/stryker.md',
   },
@@ -106,32 +103,4 @@ function json(text) {
   } catch {
     return null
   }
-}
-
-/** Stryker's statuses for a mutant no test detected; Timeout counts as a kill, CompileError as invalid. */
-const UNDETECTED = new Set(['Survived', 'NoCoverage'])
-const REPLACEMENT_CAP = 80
-
-/**
- * Every mutant in a Stryker `mutation.json` [json] that no test detected, keyed to the report's
- * file (relative to the stack root, where Stryker runs) and starting line. A replacement is
- * folded onto one line and capped, so it fits one row of the survivors file.
- */
-function strykerSurvivors(json) {
-  return Object.entries(JSON.parse(json).files).flatMap(([file, { mutants }]) =>
-    mutants
-      .filter(({ status }) => UNDETECTED.has(status))
-      .map(({ location, mutatorName, replacement = '', status }) => ({
-        file,
-        line: location.start.line,
-        mutator: mutatorName,
-        replacement: oneLine(replacement),
-        status,
-      }))
-  )
-}
-
-function oneLine(text) {
-  const folded = text.replace(/\s+/g, ' ').trim()
-  return folded.length > REPLACEMENT_CAP ? `${folded.slice(0, REPLACEMENT_CAP - 1)}…` : folded
 }

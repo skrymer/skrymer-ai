@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { ENGINES } from './engines.mjs'
 
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
 export const PACK_FILE = 'skrymer-ai.pack.mjs'
@@ -98,7 +99,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
     const fragment = await loadPack(dir)
     testCommands.push(...(fragment.tdd?.testCommands ?? []))
     prompts.push(...(fragment.skills?.prompts ?? []))
-    const engine = fragment.mutation && { ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
+    const engine = fragment.mutation && { ...ENGINES[fragment.mutation.engine], ...fragment.mutation, ...validMutation(stack.mutation, `stacks.${pack}.mutation`, errors) }
     const checks = fragment.verify && { ...fragment.verify, ...validVerify(stack.verify, `stacks.${pack}.verify`, errors) }
     const build = stack.check === undefined ? fragment.check : validCommands(stack.check, `stacks.${pack}.check`, CHECK_EXAMPLE, errors)
     const linted = stack.lint === undefined ? fragment.lint : validLint(stack.lint, `stacks.${pack}.lint`, errors)
