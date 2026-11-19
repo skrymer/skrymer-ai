@@ -220,11 +220,12 @@ function matched(clone) {
   return lines.at(-1).length > clone.firstFile.endLoc.column ? lines.slice(0, -1).join('\n') : clone.fragment
 }
 
-/** What a file opens with and nothing extracts: comments, package lines, imports (wrapped ones too) and annotation lines. */
+/** What a file opens with and nothing extracts: comments, package lines, directives, imports (wrapped ones too) and annotation lines. */
 const PREAMBLE = [
   /\/\*[\s\S]*?(?:\*\/|$)/g,
   /\/\/.*$/gm,
   /^\s*package\s.*$/gm,
+  /^\s*['"]use (?:client|server|strict)['"];?\s*$/gm,
   /^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|[\w$]+(?:\s*,\s*\{[^}]*\})?)\s+from\s+['"][^'"]+['"];?/gm,
   /^\s*import\s+['"][^'"]+['"];?/gm,
   /^\s*import\s+[\w.*`]+(?:\s+as\s+\w+)?\s*$/gm,

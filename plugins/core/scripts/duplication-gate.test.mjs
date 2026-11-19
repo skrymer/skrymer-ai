@@ -699,3 +699,30 @@ test('copies among React tests, whose glob holds commas, are left out of the sca
   assert.equal(status, 0)
   assert.equal(stdout, '')
 })
+
+test('two client components sharing only a directive and their imports are not a clone', () => {
+  // Given a react root whose branch adds a page opening with the same 'use client' and imports as another
+  const header = `'use client'
+
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { formatMoney, formatDate } from '@/lib/format'
+`
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`),
+    { 'acme-web/src/app/invoices/page.tsx': `${header}\nexport default function Invoices() {\n  return <Card />\n}\n` },
+    { 'acme-web/src/app/orders/page.tsx': `${header}\nexport default function Orders() {\n  const [open] = useState(false)\n  return open ? <Button /> : null\n}\n` }
+  )
+
+  // When a test for the new page is written
+  const { status, stdout } = runHook(project, {
+    file_path: 'acme-web/src/app/orders/page.test.tsx',
+    content: "import { it } from 'vitest'\n\nit('lists the orders', () => {})\n",
+  })
+
+  // Then the shared header does not block it
+  assert.equal(status, 0)
+  assert.equal(stdout, '')
+})
