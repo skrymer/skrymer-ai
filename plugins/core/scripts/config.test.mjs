@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
+import { ENGINES } from './engines.mjs'
 import { MARKETPLACE_PACKS } from './marketplace-packs.mjs'
 import { tempDir } from './temp-dir.mjs'
 
@@ -553,6 +554,23 @@ test('a pack’s mutation engine lands under every one of its roots, with a stac
     ]
   )
   assert.match(config.mutation[0].notes, /kotlin-spring\/skills\/backend-dev\/references\/pitest\.md$/)
+})
+
+test('a pack naming the stryker engine gets core’s Stryker parsing', async () => {
+  // Given a config enabling nuxt and react, whose fragments name stryker and carry no parser
+  const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'] }, react: { roots: ['globex-web'] } } }`), ['acme-web', 'globex-web'])
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then each mutation stack carries the engine's targets, count and survivors parser
+  for (const stack of config.mutation) {
+    assert.equal(stack.engine, 'stryker')
+    assert.equal(stack.targets, ENGINES.stryker.targets)
+    assert.equal(stack.mutants, ENGINES.stryker.mutants)
+    assert.equal(stack.survivors, ENGINES.stryker.survivors)
+  }
+  assert.equal(config.mutation.length, 2)
 })
 
 test('a mutation override with a run that never names the targets, a bad report or a bad memory cap is an error per field', async () => {

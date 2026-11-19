@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import pack from './skrymer-ai.pack.mjs'
+import { ENGINES } from './engines.mjs'
 
-const { targets, survivors } = pack.mutation
+const { targets, mutants, survivors } = ENGINES.stryker
 
 /** A Stryker `mutation.json` (schema 1) holding [files], each a path mapped to its mutants. */
 const report = (files) =>
@@ -73,13 +73,27 @@ test('Stryker targets are the scoped files themselves', () => {
   assert.deepEqual(found, files)
 })
 
-test('the Stryker mutant count is every mutant in every file, detected or not', () => {
-  // Given a report with mutants of every kind across two files
-  const json = report({ 'app/utils/cart.ts': [mutant({}), mutant({ status: 'Killed' })], 'app/pages/index.vue': [mutant({ status: 'CompileError' })] })
+test('a route file named with brackets has them escaped, so Stryker does not read them as a glob class', () => {
+  // Given a dynamic route and a catch-all route
+  const files = ['src/app/blog/[slug]/page.tsx', 'app/pages/[...path].vue']
+
+  // When the targets are computed
+  const found = targets(files)
+
+  // Then each opening bracket matches itself
+  assert.deepEqual(found, ['src/app/blog/[[]slug]/page.tsx', 'app/pages/[[]...path].vue'])
+})
+
+test('the Stryker mutant count is every mutant that ran against the tests, detected or not', () => {
+  // Given a report with mutants that survived, were killed or timed out, and ones that never ran
+  const json = report({
+    'app/utils/cart.ts': [mutant({}), mutant({ status: 'Killed' }), mutant({ status: 'Timeout' })],
+    'app/pages/index.vue': [mutant({ status: 'CompileError' }), mutant({ status: 'RuntimeError' }), mutant({ status: 'Ignored' })],
+  })
 
   // When the mutants are counted
-  const found = pack.mutation.mutants(json)
+  const found = mutants(json)
 
-  // Then all three count
+  // Then the three that ran count, and the invalid and ignored ones do not
   assert.equal(found, 3)
 })
