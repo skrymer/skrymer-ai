@@ -8,6 +8,7 @@ import { registerHooks } from 'node:module'
 import { basename, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ENGINES } from './engines.mjs'
+import { nodeToolchain } from './toolchains.mjs'
 
 export const CONFIG_PATH = join('.claude', 'skrymer-ai.config.mjs')
 export const PACK_FILE = 'skrymer-ai.pack.mjs'
@@ -110,11 +111,14 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
         errors.push(`stacks.${pack}.roots: "${root}" does not exist in the project.`)
         continue
       }
+      // A Node pack's own commands are written for pnpm; a stack's own run as the project wrote them.
+      const node = fragment.toolchain === 'node' ? nodeToolchain(trimRoot(root), readIn(join(projectDir, root)), readIn(projectDir)) : null
+      const ours = (commands, own) => (node && own === undefined ? commands?.map(node.command) : commands)
       for (const rule of fragment.skills?.files ?? []) {
         files.push({ ...rule, path: new RegExp(`^${rootPrefix(root)}(?:${rule.path.source})`) })
       }
       for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
-      if (groups?.length) format.push({ root: trimRoot(root), groups })
+      if (groups?.length) format.push({ root: trimRoot(root), groups: node && stack.format === undefined ? groups.map((group) => ({ ...group, run: ours(group.run) })) : groups })
       if (Array.isArray(fragment.duplication?.tests)) {
         const { tests, ...rest } = fragment.duplication
         duplication.push({ ...rest, pack, root: trimRoot(root), tests: tests.map((glob) => `${globPrefix(root)}${glob}`) })
@@ -122,13 +126,14 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
       if (engine) {
         const under = (globs) => globs.map((glob) => `${globPrefix(root)}${glob}`)
         const notes = engine.notes && join(dir, engine.notes)
-        mutation.push({ ...engine, pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
+        mutation.push({ ...engine, run: ours(engine.run && [engine.run], stack.mutation?.run)?.[0], pack, root: trimRoot(root), notes, source: under(engine.source), tests: under(fragment.duplication?.tests ?? []) })
       }
       if (checks) verify.push({ pack, root: trimRoot(root), ...checks })
-      if (build?.length) check.push({ pack, root: trimRoot(root), run: build })
+      if (build?.length) check.push({ pack, root: trimRoot(root), run: ours(build, stack.check) })
       const hook = typeof linted === 'function' ? linted(readIn(join(projectDir, root))) : linted
-      if (hook?.length) lint.push({ pack, root: trimRoot(root), run: hook })
-      if (one) test.push({ pack, root: trimRoot(root), run: one })
+      const staged = node && stack.lint === undefined && hook ? node.lint(hook) : hook
+      if (staged?.length) lint.push({ pack, root: trimRoot(root), run: staged })
+      if (one) test.push({ pack, root: trimRoot(root), run: ours(one && [one], stack.test)?.[0] })
     }
   }
   const projectTdd = project.tdd?.files ?? []

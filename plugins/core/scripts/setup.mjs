@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { nodeToolchain } from './toolchains.mjs'
 import { unifiedDiff } from './unified-diff.mjs'
 import { CONFIG_PATH, STAGED, availablePacks, loadConfig, loadPack, mergeConfig, packDir } from './config.mjs'
 
@@ -349,8 +350,9 @@ async function plan(projectDir) {
   const config = await mergedConfig(projectDir, stacks)
   const lint = config?.lint ?? []
   const jobs = (config?.check ?? []).map((stack) => {
-    const ci = packs.find(({ name }) => name === stack.pack)?.fragment.ci
-    return { ...stack, steps: ci ? ci(stack.root, readerIn(projectDir, stack.root)) : [] }
+    const fragment = packs.find(({ name }) => name === stack.pack)?.fragment
+    if (fragment?.toolchain === 'node') return { ...stack, steps: nodeToolchain(stack.root, readerIn(projectDir, stack.root), readerIn(projectDir, '')).ci() }
+    return { ...stack, steps: fragment?.ci ? fragment.ci(stack.root, readerIn(projectDir, stack.root)) : [] }
   })
   const github = config?.tracker.kind === 'github'
   const skipped = jobs.length && config && !github ? [`${WORKFLOW_PATH}: the workflow is GitHub Actions only, and tracker.kind is "${config.tracker.kind}".`] : []

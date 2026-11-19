@@ -549,6 +549,24 @@ test('a nuxt root’s job sets up pnpm and Node from the root’s own files, and
   )
 })
 
+test('a react package inside a pnpm workspace sets pnpm up from the workspace’s pin', () => {
+  // Given a react root at apps/web/ without a pin, in a workspace whose top pins pnpm and holds the lockfile
+  const repo = fixtureRepo({
+    'package.json': JSON.stringify({ private: true, packageManager: 'pnpm@10.4.1' }),
+    'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+    'apps/web/package.json': JSON.stringify({ dependencies: { react: '^19.0.0' } }),
+  })
+
+  // When the planner plans
+  const workflow = changeTo(planOf(repo), WORKFLOW).after
+
+  // Then pnpm/action-setup reads the pin itself, and Node caches against the workspace's lockfile
+  assert.match(
+    workflow,
+    /\n {6}- uses: pnpm\/action-setup@v4\n {6}- uses: actions\/setup-node@v4\n {8}with:\n {10}node-version: "lts\/\*"\n {10}cache: pnpm\n {10}cache-dependency-path: pnpm-lock\.yaml\n {6}- run: pnpm install --frozen-lockfile\n {6}- run: pnpm lint\n/
+  )
+})
+
 test('the workflow is skipped with a message when the tracker is not GitHub', () => {
   // Given a Spring Boot repo whose config keeps its issues locally
   const config = "import { defineConfig } from 'skrymer-ai'\n\nexport default defineConfig({ stacks: { 'kotlin-spring': { roots: ['.'] } }, tracker: { kind: 'local' } })\n"
