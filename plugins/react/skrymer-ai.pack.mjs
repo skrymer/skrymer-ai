@@ -14,6 +14,10 @@
  */
 const prettier = ['pnpm', 'exec', 'prettier', '--write', '--log-level', 'warn']
 
+/** Where React code lives: `src/` in a Vite app, or the top-level folders of a Next.js, Remix or Expo one. */
+const DIRS = ['src', 'app', 'pages', 'components', 'hooks', 'lib', 'utils']
+const SOURCE = DIRS.map((dir) => `${dir}/**/*.{ts,tsx,js,jsx}`)
+
 export default {
   detect: { files: ['package.json'], contains: /"(?:dependencies|devDependencies)"\s*:\s*\{[^}]*"react"\s*:/ },
   lsp: ['typescript-lsp@claude-plugins-official'],
@@ -26,7 +30,16 @@ export default {
   ],
   lint: (read) => (usesFlatConfig(read) ? [['pnpm', 'exec', 'eslint', '--no-warn-ignored', '{staged}']] : [['pnpm', 'lint']]),
   tdd: {
-    files: ['src/**/*.{ts,tsx,js,jsx}'],
+    files: SOURCE,
+    ignore: [
+      '**/*.stories.{ts,tsx,js,jsx}',
+      '**/*.{gen,generated}.{ts,tsx,js}',
+      '**/*.d.ts',
+      '**/setupTests.{ts,tsx,js}',
+      '**/test-utils.{ts,tsx,js,jsx}',
+      '**/test/{setup,utils}.{ts,tsx,js,jsx}',
+      '**/__mocks__/**',
+    ],
     testCommands: [/\bvitest\b|\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/],
   },
   format: [
@@ -35,7 +48,7 @@ export default {
   ],
   mutation: {
     engine: 'stryker',
-    source: ['src/**/*.{ts,tsx,js,jsx}'],
+    source: SOURCE,
     run: ['pnpm', 'exec', 'stryker', 'run', '--mutate', '{targets}', '--reporters', 'json,clear-text'],
     report: 'reports/mutation/mutation.json',
     memory: '10G',
@@ -67,13 +80,13 @@ export default {
     files: [
       {
         id: 'react-test',
-        path: /(?:src|test)\/.+\.(?:test|spec)\.[cm]?[jt]sx?$/,
+        path: new RegExp(`(?:${[...DIRS, 'test'].join('|')})/.+\\.(?:test|spec)\\.[cm]?[jt]sx?$`),
         skills: ['react:component-testing'],
         why: 'A Vitest test renders with Testing Library and queries by role, per the testing conventions.',
       },
       {
         id: 'react-source',
-        path: /src\//,
+        path: new RegExp(`(?:${DIRS.join('|')})/`),
         skills: ['react:frontend-dev'],
         why: 'Components, hooks and utils follow the playbook’s architecture rules.',
       },

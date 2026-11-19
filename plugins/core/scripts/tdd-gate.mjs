@@ -36,7 +36,7 @@ async function main() {
     return
   }
   if (!config) return
-  if (!isTddGated(process.env.CLAUDE_PROJECT_DIR, filePath, config.tdd.files)) return
+  if (!isTddGated(process.env.CLAUDE_PROJECT_DIR, filePath, config.tdd.files, config.tdd.ignore)) return
   const [command, ...args] = (process.env.SKRYMER_AI_PROBITY?.trim() || PROBITY).split(/\s+/)
   const probity = spawnSync(command, [...args, '--agent', 'claude-code', '--config', PROBITY_CONFIG], {
     input,

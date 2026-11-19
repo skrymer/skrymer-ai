@@ -30,11 +30,11 @@ export function defineConfig(config) {
   return config
 }
 
-/** Whether [file], an absolute path, is inside [projectDir] and matches one of the TDD [globs]. */
-export function isTddGated(projectDir, file, globs) {
+/** Whether [file], an absolute path, is inside [projectDir], matches one of the TDD [globs] and none of the [ignore] globs. */
+export function isTddGated(projectDir, file, globs, ignore = []) {
   const inProject = relative(projectDir, file)
   if (inProject.startsWith('..') || isAbsolute(inProject)) return false
-  return globs.some((glob) => matchesGlob(inProject, glob))
+  return globs.some((glob) => matchesGlob(inProject, glob)) && !ignore.some((glob) => matchesGlob(inProject, glob))
 }
 
 /**
@@ -76,6 +76,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   const files = []
   const prompts = []
   const tdd = []
+  const tddIgnore = []
   const testCommands = []
   const format = []
   const duplication = []
@@ -118,6 +119,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
         files.push({ ...rule, path: new RegExp(`^${rootPrefix(root)}(?:${rule.path.source})`) })
       }
       for (const glob of fragment.tdd?.files ?? []) tdd.push(`${globPrefix(root)}${glob}`)
+      for (const glob of fragment.tdd?.ignore ?? []) tddIgnore.push(`${globPrefix(root)}${glob}`)
       if (groups?.length) format.push({ root: trimRoot(root), groups: node && stack.format === undefined ? groups.map((group) => ({ ...group, run: ours(group.run) })) : groups })
       if (Array.isArray(fragment.duplication?.tests)) {
         const { tests, ...rest } = fragment.duplication
@@ -140,6 +142,12 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   if (listOf(projectTdd, (glob) => typeof glob === 'string')) {
     tdd.push(...projectTdd.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
   } else errors.push('tdd.files: expected a list of globs.')
+  const projectIgnore = project.tdd?.ignore ?? []
+  if (listOf(projectIgnore, (glob) => typeof glob === 'string')) {
+    tddIgnore.push(...projectIgnore.map((glob) => glob.replace(/^(?:\.\/+)+/, '')))
+  } else errors.push('tdd.ignore: expected a list of globs.')
+  // What the TDD gate ignores is no mutable source either.
+  for (const stack of mutation) stack.ignore = tddIgnore
   for (const rule of rules(project.skills?.files, 'skills.files', errors)) {
     const path = toRegex(rule.path, '', `skills.files "${rule.id}": path`, errors)
     if (path) files.push({ ...rule, path })
@@ -170,7 +178,7 @@ export async function mergeConfig(projectDir, pluginRoot, project) {
   }
   const signOff = validSignOff(project.signOff, { mutation, verify }, projectDir, errors, contextErrors)
   if (errors.length) return { errors }
-  return { config: { skills: { files, prompts }, tdd: { files: tdd, testCommands }, format, duplication, mutation, verify, check, lint, test, signOff, tracker, domain, contextErrors } }
+  return { config: { skills: { files, prompts }, tdd: { files: tdd, ignore: tddIgnore, testCommands }, format, duplication, mutation, verify, check, lint, test, signOff, tracker, domain, contextErrors } }
 }
 
 /** The sign-off's gates in the order core runs them. A project selects among them and cannot reorder them. */

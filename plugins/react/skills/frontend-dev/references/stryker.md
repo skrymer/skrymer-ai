@@ -7,7 +7,9 @@ expects of the project, and the places Stryker is blind.
 
 By default it runs `pnpm exec stryker run --mutate <files> --reporters json,clear-text` in the
 stack root and reads `reports/mutation/mutation.json`. The scope is the changed `.ts`, `.tsx`,
-`.js` and `.jsx` files under `src/`, minus tests. A project on another package manager or
+`.js` and `.jsx` files under `src/` (or a Next.js, Remix or Expo app's `app/`, `pages/`,
+`components/`, `hooks/`, `lib/` and `utils/`), minus tests and what the TDD gate ignores:
+stories, generated files and test helpers. A project on another package manager or
 report path names its own in the config:
 `stacks: { react: { roots: [...], mutation: { run: [...'{targets}'...], report } } }`.
 

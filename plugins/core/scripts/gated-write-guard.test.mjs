@@ -344,3 +344,35 @@ for (const command of [
     assert.equal(found, true)
   })
 }
+
+test('a shell write to a file under a Next.js app/ outside src/ is denied', () => {
+  // Given a project with a react root, laid out without src/
+  const project = reactProject()
+
+  // When a shell command writes a page, a component and a hook
+  const found = ['app/page.tsx', 'components/Cart.tsx', 'hooks/useCart.ts'].map((file) => denied(project, `echo x > acme-web/${file}`))
+
+  // Then each is denied
+  assert.deepEqual(found, [true, true, true])
+})
+
+test('a write to a story, a generated file or a test helper under a react root is not gated', () => {
+  // Given a project with a react root that also ignores its generated API schema
+  const dir = tempDir('gated-write-guard-project-')
+  mkdirSync(join(dir, 'acme-web'))
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude', 'skrymer-ai.config.mjs'), "export default { stacks: { react: { roots: ['acme-web'] } }, tdd: { ignore: ['acme-web/src/api/schema.ts'] } }\n")
+
+  // When a shell command writes each of them
+  const found = [
+    'pnpm exec openapi-typescript spec.yaml > acme-web/src/api/schema.ts',
+    'echo x > acme-web/src/components/Button.stories.tsx',
+    'echo x > acme-web/src/routeTree.gen.ts',
+    'echo x > acme-web/src/vite-env.d.ts',
+    'echo x > acme-web/src/setupTests.ts',
+    'echo x > acme-web/src/test/test-utils.tsx',
+  ].map((command) => denied(dir, command))
+
+  // Then none is denied
+  assert.deepEqual(found, [false, false, false, false, false, false])
+})
