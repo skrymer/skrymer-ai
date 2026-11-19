@@ -226,8 +226,8 @@ function validSignOff(block = {}, engines, projectDir, errors, contextErrors) {
 
 /** [command] if it is a list of words with one holding `{test}`, the test to run, else null with an error under [label]. */
 function validTest(command, label, errors) {
-  if (isStrings(command) && command.some((word) => word.includes('{test}'))) return command
-  errors.push(`${label}: expected a command as a list of words, one holding {test}, such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'].`)
+  if (isStrings(command) && command.some((word) => /\{test(?:Pattern)?\}/.test(word))) return command
+  errors.push(`${label}: expected a command as a list of words, one holding {test} (the name) or {testPattern} (a regex matching it alone), such as ['pnpm', 'exec', 'vitest', 'run', '-t', '{testPattern}'].`)
   return null
 }
 

@@ -18,7 +18,7 @@ export default {
   detect: { files: ['package.json'], contains: /"(?:dependencies|devDependencies)"\s*:\s*\{[^}]*"react"\s*:/ },
   lsp: ['typescript-lsp@claude-plugins-official'],
   toolchain: 'node',
-  test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'],
+  test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{testPattern}'],
   check: [
     ['pnpm', 'lint'],
     ['pnpm', 'build'],

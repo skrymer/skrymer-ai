@@ -7,7 +7,10 @@
  *   node red-proof.mjs <label> --file <path> --find <text> --replace <text> --test <name>
  *
  * The mutation replaces text that is in the file exactly once. The test runs through the `test`
- * command of the stack whose root holds the file, with `{test}` standing for the name. A run
+ * command of the stack whose root holds the file, with `{test}` standing for the name and
+ * `{testPattern}` for a regex matching it alone at the end of the full name, for a runner that
+ * reads the name as a pattern. The test must pass on the copy first, so a runner that is
+ * missing or a test that fails anyway can't stand in for the red. A run with the mutation
  * where the test fails is the red: its log, with the HEAD and `git status` it ran on, goes to
  * `skrymer-ai/red/<label>.log` in the repo's git dir, and the script prints the FIXED cell that
  * cites it. A test that passes with the mutation applied doesn't pin the fix, and the run fails.
@@ -62,18 +65,28 @@ async function main(argv, projectDir) {
       if (existsSync(modules) && !existsSync(join(copy, dir, 'node_modules'))) symlinkSync(modules, join(copy, dir, 'node_modules'), 'dir')
     }
     const inTop = resolve(projectDir, file).slice(top.length + 1)
-    writeFileSync(join(copy, inTop), source.replace(find, replace))
-
-    const [command, ...args] = stack.run.map((word) => word.replaceAll('{test}', test))
+    const pattern = `${test.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`
+    const [command, ...args] = stack.run.map((word) => word.replaceAll('{testPattern}', pattern).replaceAll('{test}', test))
     const out = resolve(top, git(projectDir, 'rev-parse', '--git-path', 'skrymer-ai/red'))
     mkdirSync(out, { recursive: true })
     const logPath = join(out, `${label}.log`)
     const log = openSync(logPath, 'w')
-    writeSync(log, `HEAD: ${git(top, 'rev-parse', 'HEAD')}\ngit status:\n${git(top, 'status', '--short') || '(clean)'}\nmutation: ${file}: "${find}" → "${replace}"\n$ ${[command, ...args].join(' ')}\n`)
     // A runner started inside another, as this script's tests start it, would skip its files.
     const { NODE_TEST_CONTEXT, ...env } = process.env
-    const run = spawnSync(command, args, { cwd: join(copy, stack.root), env, stdio: ['ignore', log, log] })
-    writeSync(log, `exit: ${run.error?.message ?? run.status ?? run.signal}\n`)
+    const runTest = () => {
+      writeSync(log, `$ ${[command, ...args].join(' ')}\n`)
+      const run = spawnSync(command, args, { cwd: join(copy, stack.root), env, stdio: ['ignore', log, log] })
+      writeSync(log, `exit: ${run.error?.message ?? run.status ?? run.signal}\n`)
+      return run
+    }
+    writeSync(log, `HEAD: ${git(top, 'rev-parse', 'HEAD')}\ngit status:\n${git(top, 'status', '--short') || '(clean)'}\nwithout the mutation:\n`)
+    if (runTest().status !== 0) {
+      closeSync(log)
+      throw new Stop(`"${test}" fails without the mutation, so its failure with it proves nothing. Log: ${logPath}`)
+    }
+    writeFileSync(join(copy, inTop), source.replace(find, replace))
+    writeSync(log, `mutation: ${file}: "${find}" → "${replace}"\n`)
+    const run = runTest()
     closeSync(log)
     if (run.status === 0) throw new Stop(`"${test}" passes with the mutation applied, so it doesn't pin the fix. Log: ${logPath}`)
     if (run.error) throw new Stop(`the test command could not start (${run.error.message}). Log: ${logPath}`)

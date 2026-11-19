@@ -17,7 +17,7 @@ export default {
   detect: { files: ['nuxt.config.ts', 'nuxt.config.js', 'nuxt.config.mjs'] },
   lsp: ['typescript-lsp@claude-plugins-official'],
   toolchain: 'node',
-  test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{test}'],
+  test: ['pnpm', 'exec', 'vitest', 'run', '-t', '{testPattern}'],
   check: [
     ['pnpm', 'lint'],
     ['pnpm', 'typecheck'],

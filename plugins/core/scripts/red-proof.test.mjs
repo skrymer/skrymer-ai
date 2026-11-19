@@ -64,3 +64,43 @@ test('a mutation whose text is not in the file exactly once stops before anythin
   assert.deepEqual([status, stdout], [1, 'STOP: "a * b" is in web/cart.mjs 0 times; a mutation replaces text that is there exactly once.\n'])
   assert.equal(existsSync(log(dir, 'CR-3')), false)
 })
+
+test('a test command that fails before the mutation is no red, as when the runner is not installed', () => {
+  // Given a project whose one-test command is a runner that is not there
+  const dir = realpathSync(
+    gitProject({
+      '.claude/skrymer-ai.config.mjs': "export default { stacks: { nuxt: { roots: ['web'], test: ['node', 'no-such-runner.mjs', '{test}'] } } }\n",
+      'web/cart.mjs': CART,
+    })
+  )
+
+  // When a mutation is proved against it
+  const { status, stdout } = runScript(SCRIPT, dir, ['CR-4', '--file', 'web/cart.mjs', '--find', 'a + b', '--replace', 'a - b', '--test', 'a cart adds two prices'])
+
+  // Then it stops before the mutation, saying the test must pass first, and the log shows the failing run
+  assert.equal(status, 1)
+  assert.equal(stdout, `STOP: "a cart adds two prices" fails without the mutation, so its failure with it proves nothing. Log: ${log(dir, 'CR-4')}\n`)
+  assert.doesNotMatch(readFileSync(log(dir, 'CR-4'), 'utf8'), /\nmutation: /)
+})
+
+test('{testPattern} stands for the name as a regex matching it alone, at the end of the full name', () => {
+  // Given a project whose runner takes a name pattern, and a test named with regex characters beside a longer one
+  const dir = realpathSync(
+    gitProject({
+      '.claude/skrymer-ai.config.mjs': "export default { stacks: { nuxt: { roots: ['web'], test: ['node', '--test', '--test-name-pattern', '{testPattern}'] } } }\n",
+      'web/cart.mjs': CART,
+      'web/cart.test.mjs':
+        "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { total } from './cart.mjs'\n\n" +
+        "test('a cart totals (2 items)', () => assert.equal(total(1, 2), 3))\ntest('a cart totals (2 items) with tax', () => assert.ok(true))\n",
+    })
+  )
+
+  // When the sum is mutated and that test is run against it
+  const { status, stdout } = runScript(SCRIPT, dir, ['CR-5', '--file', 'web/cart.mjs', '--find', 'a + b', '--replace', 'a - b', '--test', 'a cart totals (2 items)'])
+
+  // Then the escaped, end-anchored pattern runs that test, which fails, and not the longer one
+  assert.equal(status, 0, stdout)
+  const recorded = readFileSync(log(dir, 'CR-5'), 'utf8')
+  assert.match(recorded, /\$ node --test --test-name-pattern a cart totals \\\(2 items\\\)\$\n/)
+  assert.doesNotMatch(recorded, /with tax/)
+})
