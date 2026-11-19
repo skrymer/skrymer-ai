@@ -15,7 +15,8 @@ import { escapeRegex, isTddGated, loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-const PATH_TOKEN = /[\w./~@+-]+\.\w+\b/g
+/** A path with an extension, route characters included: `[slug]`, `$postId`, `(group)`. */
+const PATH_TOKEN = /[\w./~@+$()[\]-]+\.\w+\b/g
 
 const CD = /\bcd\s+(['"]?)([^\s;&|'"]+)\1/g
 
