@@ -113,3 +113,40 @@ for (const command of [
     assert.equal(JSON.parse(stdout).hookSpecificOutput.permissionDecision, 'deny')
   })
 }
+
+/** A temp project whose config enables [pack] under `acme-web`. */
+function webProject(pack) {
+  const dir = tempDir('test-output-guard-project-')
+  mkdirSync(join(dir, 'acme-web'))
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude', 'skrymer-ai.config.mjs'), `export default { stacks: { ${pack}: { roots: ['acme-web'] } } }\n`)
+  return dir
+}
+
+for (const pack of ['react', 'nuxt']) {
+  for (const command of ['pnpm --filter acme-web test | tail -30', 'pnpm -C acme-web test 2>&1 | tail -30', 'npm t | tail', 'yarn workspace acme-web test | head', 'npm run test -- --run | grep FAIL']) {
+    test(`\`${command}\` is denied under a ${pack} root`, () => {
+      // Given a project with a ${pack} root
+      const project = webProject(pack)
+
+      // When a filtered, aliased or argument-carrying test run is piped through a truncating command
+      const { stdout } = runHook(project, command)
+
+      // Then it is denied
+      assert.equal(JSON.parse(stdout).hookSpecificOutput.permissionDecision, 'deny')
+    })
+  }
+
+  for (const command of ['pnpm add -D @testing-library/react | tail', 'npm install test-utils | tail', 'pnpm typecheck | tail']) {
+    test(`\`${command}\` is allowed under a ${pack} root`, () => {
+      // Given a project with a ${pack} root
+      const project = webProject(pack)
+
+      // When a package-manager command that runs no tests is piped through tail
+      const { stdout } = runHook(project, command)
+
+      // Then it passes
+      assert.equal(stdout, '')
+    })
+  }
+}
