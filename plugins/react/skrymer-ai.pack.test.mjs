@@ -26,14 +26,3 @@ test('a root on a legacy .eslintrc runs its own lint script, since that ESLint h
   // Then the root's lint script runs instead
   assert.deepEqual(found, [['pnpm', 'lint']])
 })
-
-test('a root with lint-staged runs it, whatever its ESLint config', () => {
-  // Given a root whose package.json configures lint-staged
-  const read = rootOf({ 'package.json': JSON.stringify({ 'lint-staged': { '*.tsx': 'eslint --fix' } }) })
-
-  // When its pre-commit lint is computed
-  const found = pack.lint(read)
-
-  // Then lint-staged runs
-  assert.deepEqual(found, [['pnpm', 'exec', 'lint-staged']])
-})

@@ -52,7 +52,7 @@ At session start, `core` tells the session the issue tracker (`github` or `local
 
 ### Formatter
 
-After each Write or Edit, `core` formats the file with the formatter of the stack whose root holds it, running in that root so the root's own Prettier and ESLint configs apply. A pack gives its formatter as `format` groups (`nuxt`: Prettier then `eslint --fix` on script and Vue files, Prettier alone on JSON, CSS, Markdown and YAML, both through `pnpm exec`; `react` the same, with `.jsx` and `.tsx` in place of `.vue`). A stack replaces its pack's groups with its own:
+After each Write or Edit, `core` formats the file with the formatter of the stack whose root holds it, running in that root so the root's own Prettier and ESLint configs apply. A pack gives its formatter as `format` groups (`nuxt`: Prettier then `eslint --fix` on script and Vue files, Prettier alone on JSON, CSS, Markdown and YAML, both through `pnpm exec`; `react` the same, with `.jsx` and `.tsx` in place of `.vue`). A Node pack's commands are written for pnpm and run through the root's own package manager, the one its `package.json` pins or its lockfile is for, else the workspace's. A stack replaces its pack's groups with its own:
 
 ```js
 stacks: { nuxt: { roots: ['web'], format: [{ files: ['**/*.{ts,vue}'], run: [['npx', 'biome', 'format', '--write']] }] } }
@@ -98,7 +98,7 @@ The committed hook and workflow can't call into the plugin, since its path diffe
   stacks: { nuxt: { roots: ['web'], lint: [['npx', 'biome', 'check', '{staged}']] } }
   ```
 
-- **`check`** is the full build and test. It runs in the sign-off and in `.github/workflows/skrymer-ai.yml`, which has one job per stack root: the pack's setup steps (`kotlin-spring`: the JDK the Gradle toolchain names, else 21, and Gradle with its cache; `nuxt` and `react`: pnpm as `packageManager` pins it, Node from `.nvmrc`, and the install), then `check`. The workflow is GitHub Actions only, so setup skips it when `tracker.kind` isn't `github`.
+- **`check`** is the full build and test. It runs in the sign-off and in `.github/workflows/skrymer-ai.yml`, which has one job per stack root: the pack's setup steps (`kotlin-spring`: the JDK the Gradle toolchain names, else 21, and Gradle with its cache; `nuxt` and `react`: the root's package manager as its own or its workspace's `package.json` pins it or its lockfile names it, Node from `.nvmrc`, and the install), then `check`. The workflow is GitHub Actions only, so setup skips it when `tracker.kind` isn't `github`.
 
 Each file holds a generated block between `# skrymer-ai:start` and `# skrymer-ai:end`. Setup rewrites the block, keeps your edits outside it, and `--check` reports a block that has drifted from the config or a pack. Setup sets `core.hooksPath` to `.githooks` in the clone's local git config, and `--check` reports it when it isn't set. A project on husky or a hooks path of its own keeps it, and setup prints the line to add to that pre-commit hook: `sh .githooks/pre-commit`.
 

@@ -835,6 +835,28 @@ test('a nuxt root lints its staged files with ESLint and typechecks, unless it h
   ])
 })
 
+test('a react root on npm runs the pack’s commands through npm, and a stack’s own commands as written', async () => {
+  // Given a react root holding a package-lock.json and an ESLint flat config, and a nuxt root on npm with a check of its own
+  const project = fixtureProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] }, nuxt: { roots: ['globex-web'], check: [['pnpm', 'run', 'ci:globex']] } } }`),
+    ['acme-web', 'globex-web']
+  )
+  for (const root of ['acme-web', 'globex-web']) writeFileSync(join(project, root, 'package-lock.json'), '{}')
+  writeFileSync(join(project, 'acme-web', 'eslint.config.js'), 'export default []')
+
+  // When the config is loaded
+  const { config } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then react's check, lint, one-test command, formatter and mutation run go through npm, and nuxt's own check is left alone
+  const react = (list) => list.find(({ pack }) => pack === 'react')
+  assert.deepEqual(react(config.check).run, [['npm', 'run', 'lint'], ['npm', 'run', 'build'], ['npm', 'run', 'test']])
+  assert.deepEqual(react(config.lint).run, [['npm', 'exec', '--', 'eslint', '--no-warn-ignored', '{staged}']])
+  assert.deepEqual(react(config.test).run, ['npm', 'exec', '--', 'vitest', 'run', '-t', '{test}'])
+  assert.deepEqual(config.format.find(({ root }) => root === 'acme-web').groups[0].run[0], ['npm', 'exec', '--', 'prettier', '--write', '--log-level', 'warn'])
+  assert.deepEqual(react(config.mutation).run.slice(0, 5), ['npm', 'exec', '--', 'stryker', 'run'])
+  assert.deepEqual(config.check.find(({ pack }) => pack === 'nuxt').run, [['pnpm', 'run', 'ci:globex']])
+})
+
 test('a stack lint with {staged} anywhere but its last word is an error showing the shape', async () => {
   // Given a nuxt stack whose lint puts the staged files before a flag
   const project = fixtureProject(configOf(`{ stacks: { nuxt: { roots: ['acme-web'], lint: [['eslint', '{staged}', '--fix']] } } }`), ['acme-web'])
