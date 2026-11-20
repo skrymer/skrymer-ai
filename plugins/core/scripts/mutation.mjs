@@ -26,7 +26,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, write
 import { dirname, join, matchesGlob, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { changedOnBranch } from './branch.mjs'
-import { loadConfig, trimRoot } from './config.mjs'
+import { ignores, loadConfig, trimRoot } from './config.mjs'
 
 const SCRIPT = fileURLToPath(import.meta.url)
 const PLUGIN_ROOT = join(dirname(SCRIPT), '..')
@@ -59,7 +59,7 @@ function measure(projectDir, ignore) {
   if (!changed.length) throw new Stop(`the branch holds no change since ${base.slice(0, 7)}. Nothing was measured, so this is not a skip.`)
   const onDisk = changed.filter((file) => existsSync(join(projectDir, file)))
   const scopeOf = (stack) =>
-    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && ![...stack.tests, ...ignore].some((glob) => matchesGlob(file, glob)))
+    onDisk.filter((file) => stack.source.some((glob) => matchesGlob(file, glob)) && !stack.tests.some((glob) => matchesGlob(file, glob)) && !ignores(file, ignore))
   return { ...branch, scopeOf }
 }
 

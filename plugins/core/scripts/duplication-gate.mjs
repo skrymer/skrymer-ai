@@ -12,7 +12,8 @@
  * left origin's default branch, so a clone the branch only moved or left alone never blocks.
  * The deny words the way out in that pack's terms.
  *
- * `SKRYMER_AI_JSCPD` names another command to run jscpd with, such as a local install.
+ * `SKRYMER_AI_JSCPD` names another command to run jscpd with, such as a local install of jscpd 5
+ * (jscpd 4 has no `--cross-formats`).
  *
  * Fails open, and says so: a scan that can't run lets the write through with
  * "duplication-gate skipped: …" to the user and the agent, so a skipped scan never reads as a
@@ -26,7 +27,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { branchOf } from './branch.mjs'
-import { availablePacks, loadConfig, loadPack, packDir } from './config.mjs'
+import { availablePacks, ignores, loadConfig, loadPack, packDir } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const JSCPD = 'jscpd@5.4.0'
@@ -52,10 +53,13 @@ async function main() {
   const dirs = scanDirs(projectDir, stacks, config.tdd.files)
   if (!dirs.length) return
   const changes = branchChanges(projectDir)
-  const ignore = [...config.duplication.flatMap((stack) => stack.tests), ...config.tdd.ignore]
+  const ignore = config.duplication.flatMap((stack) => stack.tests)
   const formats = [...new Set(stacks.flatMap((stack) => stack.formats))]
   const cross = [...new Set(stacks.flatMap((stack) => stack.crossFormats ?? []))]
-  const clones = (await findClones(projectDir, dirs, ignore, formats, cross)).filter((pair) => pair.some((side) => changes.touches(side)))
+  // What the TDD gate ignores is matched as the gate matches it, not by jscpd's own globs.
+  const clones = (await findClones(projectDir, dirs, ignore, formats, cross)).filter(
+    (pair) => pair.some((side) => changes.touches(side)) && !pair.some((side) => ignores(side.file, config.tdd.ignore))
+  )
   if (clones.length) process.stdout.write(JSON.stringify(refusal(clones, writing)))
 }
 
@@ -227,7 +231,7 @@ const PREAMBLE = [
   /\/\*[\s\S]*?(?:\*\/|$)/g,
   /\/\/.*$/gm,
   /^\s*package\s.*$/gm,
-  /^\s*['"]use (?:client|server|strict)['"];?\s*$/gm,
+  /^\s*(['"])use [a-z][\w :-]*\1;?\s*$/gm,
   /^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|[\w$]+(?:\s*,\s*\{[^}]*\})?)\s+from\s+['"][^'"]+['"];?/gm,
   /^\s*import\s+['"][^'"]+['"];?/gm,
   /^\s*import\s+[\w.*`]+(?:\s+as\s+\w+)?\s*$/gm,
