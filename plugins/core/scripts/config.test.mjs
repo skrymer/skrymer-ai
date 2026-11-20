@@ -873,10 +873,10 @@ test('a react root on npm runs the pack’s commands through npm, and a stack’
   // Then react's check, lint, one-test command, formatter and mutation run go through npm, and nuxt's own check is left alone
   const react = (list) => list.find(({ pack }) => pack === 'react')
   assert.deepEqual(react(config.check).run, [['npm', 'run', 'lint'], ['npm', 'run', 'build'], ['npm', 'run', 'test']])
-  assert.deepEqual(react(config.lint).run, [['npm', 'exec', '--', 'eslint', '--no-warn-ignored', '{staged}']])
-  assert.deepEqual(react(config.test).run, ['npm', 'exec', '--', 'vitest', 'run', '-t', '{testPattern}'])
-  assert.deepEqual(config.format.find(({ root }) => root === 'acme-web').groups[0].run[0], ['npm', 'exec', '--', 'prettier', '--write', '--log-level', 'warn'])
-  assert.deepEqual(react(config.mutation).run.slice(0, 5), ['npm', 'exec', '--', 'stryker', 'run'])
+  assert.deepEqual(react(config.lint).run, [['npm', 'exec', '--no', '--', 'eslint', '--no-warn-ignored', '{staged}']])
+  assert.deepEqual(react(config.test).run, ['npm', 'exec', '--no', '--', 'vitest', 'run', '-t', '{testPattern}'])
+  assert.deepEqual(config.format.find(({ root }) => root === 'acme-web').groups[0].run[0], ['npm', 'exec', '--no', '--', 'prettier', '--write', '--log-level', 'warn'])
+  assert.deepEqual(react(config.mutation).run.slice(0, 6), ['npm', 'exec', '--no', '--', 'stryker', 'run'])
   assert.deepEqual(config.check.find(({ pack }) => pack === 'nuxt').run, [['pnpm', 'run', 'ci:globex']])
 })
 
