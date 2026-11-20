@@ -83,7 +83,7 @@ test('a test command that fails before the mutation is no red, as when the runne
   assert.doesNotMatch(readFileSync(log(dir, 'CR-4'), 'utf8'), /\nmutation: /)
 })
 
-test('{testPattern} stands for the name as a regex matching it alone, at the end of the full name', () => {
+test('{testPattern} stands for the name as a regex matching it exactly', () => {
   // Given a project whose runner takes a name pattern, and a test named with regex characters beside a longer one
   const dir = realpathSync(
     gitProject({
@@ -98,9 +98,58 @@ test('{testPattern} stands for the name as a regex matching it alone, at the end
   // When the sum is mutated and that test is run against it
   const { status, stdout } = runScript(SCRIPT, dir, ['CR-5', '--file', 'web/cart.mjs', '--find', 'a + b', '--replace', 'a - b', '--test', 'a cart totals (2 items)'])
 
-  // Then the escaped, end-anchored pattern runs that test, which fails, and not the longer one
+  // Then the escaped, anchored pattern runs that test, which fails, and not the longer one
   assert.equal(status, 0, stdout)
   const recorded = readFileSync(log(dir, 'CR-5'), 'utf8')
-  assert.match(recorded, /\$ node --test --test-name-pattern a cart totals \\\(2 items\\\)\$\n/)
+  assert.match(recorded, /\$ node --test --test-name-pattern \^a cart totals \\\(2 items\\\)\$\n/)
   assert.doesNotMatch(recorded, /with tax/)
+})
+
+test('a replacement holding $ patterns is written as given, not expanded', () => {
+  // Given a cart whose test doesn't reach a defaulted third argument
+  const dir = project()
+
+  // When the mutation adds a default holding $', which String.replace would expand into the rest of the file
+  const { status, stdout } = runScript(SCRIPT, dir, ['CR-6', '--file', 'web/cart.mjs', '--find', '(a, b)', '--replace', `(a, b, c = "$'")`, '--test', 'a cart adds two prices'])
+
+  // Then the copy compiles, the test passes against it, and the run says it doesn't pin the fix
+  assert.equal(status, 1)
+  assert.match(stdout, /passes with the mutation applied/)
+})
+
+test('a test name ending in $ keeps its end anchor, so a longer name is not run with it', () => {
+  // Given a cart with a test named with a trailing $ beside a longer one the mutation breaks
+  const dir = realpathSync(
+    gitProject({
+      '.claude/skrymer-ai.config.mjs': "export default { stacks: { nuxt: { roots: ['web'], test: ['node', '--test', '--test-name-pattern', '{testPattern}'] } } }\n",
+      'web/cart.mjs': CART,
+      'web/cart.test.mjs':
+        "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { total } from './cart.mjs'\n\n" +
+        "test('a cart costs $', () => assert.ok(true))\ntest('a cart costs $ in total', () => assert.equal(total(1, 2), 3))\n",
+    })
+  )
+
+  // When the sum is mutated and the shorter name is proved against it
+  const { status, stdout } = runScript(SCRIPT, dir, ['CR-7', '--file', 'web/cart.mjs', '--find', 'a + b', '--replace', 'a - b', '--test', 'a cart costs $'])
+
+  // Then only that test runs, it passes, and no red is recorded
+  assert.equal(status, 1)
+  assert.match(stdout, /passes with the mutation applied/)
+})
+
+test('a test command that cannot start says so, rather than that the test fails', () => {
+  // Given a project whose one-test command names a program that isn't installed
+  const dir = realpathSync(
+    gitProject({
+      '.claude/skrymer-ai.config.mjs': "export default { stacks: { nuxt: { roots: ['web'], test: ['acme-no-such-runner', '{test}'] } } }\n",
+      'web/cart.mjs': CART,
+    })
+  )
+
+  // When a mutation is proved against it
+  const { status, stdout } = runScript(SCRIPT, dir, ['CR-8', '--file', 'web/cart.mjs', '--find', 'a + b', '--replace', 'a - b', '--test', 'a cart adds two prices'])
+
+  // Then it stops saying the command could not start
+  assert.equal(status, 1)
+  assert.match(stdout, /^STOP: the test command could not start \(spawnSync acme-no-such-runner ENOENT\)/)
 })
