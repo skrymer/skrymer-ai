@@ -58,8 +58,9 @@ export default {
     tests: ['**/*.{test,spec}.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
     declaration: /(?<![\w.])(?:it|test)(?:\.\w+(?:\([^)]*\))?)*\s*\(/,
     formats: ['javascript', 'typescript', 'jsx', 'tsx'],
-    // A copy between a .ts util and a .tsx component is still a copy.
-    crossFormats: ['js-ts'],
+    // A copy between a .ts util and a .tsx component is still a copy. Not jscpd's js-ts preset,
+    // which strips every TypeScript file's types and so misses type-heavy copies.
+    crossFormats: ['typescript,tsx', 'javascript,jsx'],
     remedy:
       'Use Extract Function: a custom hook in the same file when both copies share one, a shared hook ' +
       'or a component when they do not, and a plain function in src/utils/ for pure code. Slide ' +

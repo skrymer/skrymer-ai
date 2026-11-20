@@ -34,7 +34,12 @@ export function defineConfig(config) {
 export function isTddGated(projectDir, file, globs, ignore = []) {
   const inProject = relative(projectDir, file)
   if (inProject.startsWith('..') || isAbsolute(inProject)) return false
-  return globs.some((glob) => matchesGlob(inProject, glob)) && !ignore.some((glob) => matchesGlob(inProject, glob))
+  return globs.some((glob) => matchesGlob(inProject, glob)) && !ignores(inProject, ignore)
+}
+
+/** Whether [file], project-relative, is one the TDD [ignore] list names: by a glob, or by its exact path, brackets and all. */
+export function ignores(file, ignore) {
+  return ignore.some((glob) => glob === file || matchesGlob(file, glob))
 }
 
 /**

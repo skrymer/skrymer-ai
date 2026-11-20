@@ -756,3 +756,67 @@ test('code copied from a .ts util into a .tsx component is a clone', () => {
   assert.equal(out.permissionDecision, 'deny')
   assert.match(out.permissionDecisionReason, /acme-web\/src\/\w+\/\w+\.tsx?:\d+ ↔ acme-web\/src\/\w+\/\w+\.tsx?:\d+/)
 })
+
+test('a props type copied between two .ts files is a clone, its types counted', () => {
+  // Given a react root whose branch copies a component's props type into a second file
+  const props = (name) => `export interface ${name}Props {
+  id: string
+  total: number
+  currency: 'EUR' | 'DKK' | 'USD'
+  createdAt: Date
+  lines: ReadonlyArray<{ sku: string; quantity: number; price: number }>
+  note?: string
+  onSelect: (id: string, selected: boolean) => void
+}
+`
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`),
+    { 'acme-web/src/components/cart.types.ts': props('Cart') },
+    { 'acme-web/src/components/order.types.ts': props('Order') }
+  )
+
+  // When a test is written
+  const { stdout } = runHook(project, { file_path: 'acme-web/src/components/Order.test.tsx', content: "import { it } from 'vitest'\n\nit('shows an order', () => {})\n" })
+
+  // Then the copy blocks it
+  assert.equal(JSON.parse(stdout).hookSpecificOutput.permissionDecision, 'deny')
+})
+
+test('two pages sharing only another directive, such as use cache, and their imports are not a clone', () => {
+  // Given a react root whose branch adds a page opening with the same 'use cache' and imports as another
+  const header = `'use cache'
+
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { formatMoney, formatDate } from '@/lib/format'
+`
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } } }`),
+    { 'acme-web/app/invoices/page.tsx': `${header}\nexport default function Invoices() {\n  return <Card />\n}\n` },
+    { 'acme-web/app/orders/page.tsx': `${header}\nexport default function Orders() {\n  const [open] = useState(false)\n  return open ? <Button /> : null\n}\n` }
+  )
+
+  // When a test for the new page is written
+  const { stdout } = runHook(project, { file_path: 'acme-web/app/orders/page.test.tsx', content: "import { it } from 'vitest'\n\nit('lists the orders', () => {})\n" })
+
+  // Then the shared header does not block it
+  assert.equal(stdout, '')
+})
+
+test('a clone in a file the project ignores, named by its exact path, does not block', () => {
+  // Given a react root that ignores a generated client, whose branch adds a near-copy of it at a bracketed route path
+  const client = (name) => `export async function ${name}(id: string) {\n  const response = await fetch('/api/' + id, { headers: { accept: 'application/json' } })\n  if (!response.ok) throw new Error('request failed: ' + response.status)\n  const body = await response.json()\n  return { id: body.id, name: body.name, total: body.total, createdAt: new Date(body.createdAt) }\n}\n`
+  const project = gitProject(
+    configOf(`{ stacks: { react: { roots: ['acme-web'] } }, tdd: { ignore: ['acme-web/app/api/[...slug]/route.ts'] } }`),
+    { 'acme-web/src/api/orders.ts': client('fetchOrder') },
+    { 'acme-web/app/api/[...slug]/route.ts': client('fetchAny') }
+  )
+
+  // When a test is written
+  const { stdout } = runHook(project, { file_path: 'acme-web/src/api/orders.test.ts', content: "import { it } from 'vitest'\n\nit('fetches an order', () => {})\n" })
+
+  // Then the ignored copy does not block it
+  assert.equal(stdout, '')
+})
