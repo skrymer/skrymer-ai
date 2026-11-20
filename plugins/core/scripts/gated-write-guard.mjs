@@ -15,8 +15,14 @@ import { escapeRegex, isTddGated, loadConfig } from './config.mjs'
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** A path with an extension, route characters included: `[slug]`, `$postId`, `(group)`. */
-const PATH_TOKEN = /[\w./~@+$()[\]-]+\.\w+\b/g
+/** A path with an extension, route characters included: `[slug]`, `$postId`, `(group)`, `{-$locale}`, `%C3`. */
+const PATH_TOKEN = /[\w./~@+$()[\]{}%-]+\.\w+\b/g
+
+/** A quoted path with an extension, which may hold spaces. */
+const QUOTED_PATH = /(['"])([^'"\n]*\.\w+)\1/g
+
+/** Every path [text] names: bare ones, and quoted ones whole. */
+const pathsIn = (text) => [...new Set([...(text.match(PATH_TOKEN) ?? []), ...[...text.matchAll(QUOTED_PATH)].map(([, , path]) => path)])]
 
 const CD = /\bcd\s+(['"]?)([^\s;&|'"]+)\1/g
 
@@ -110,14 +116,14 @@ const segmentsOf = (command) =>
 function offendingPaths(command, scope) {
   const offending = new Set()
   for (const segment of segmentsOf(command)) {
-    for (const path of segment.match(PATH_TOKEN) ?? []) {
-      if (isGated(path, command, scope) && writesWithShell(segment, path)) offending.add(path)
+    for (const path of pathsIn(segment)) {
+      if (writesWithShell(segment, path) && isGated(path, command, scope)) offending.add(path)
     }
     for (const target of copyTargets(segment)) {
       if (isGated(target, command, scope)) offending.add(target)
     }
   }
-  for (const path of command.match(PATH_TOKEN) ?? []) {
+  for (const path of pathsIn(command)) {
     if (isGated(path, command, scope) && scriptWrites(command, path, scope)) offending.add(path)
   }
   return [...offending]

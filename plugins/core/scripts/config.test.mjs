@@ -585,6 +585,18 @@ test('the TDD gate ignores each pack’s ignore globs under its roots, and the p
   assert.ok(config.tdd.ignore.includes('acme-web/src/api/schema.ts'))
 })
 
+test('a project tdd list given as null is no globs, not an error', async () => {
+  // Given a project whose tdd files and ignore lists are null
+  const project = fixtureProject(configOf(`{ tdd: { files: null, ignore: null } }`))
+
+  // When the config is loaded
+  const { config, errors } = await loadConfig(project, PLUGIN_ROOT)
+
+  // Then it loads with neither list holding anything
+  assert.equal(errors, undefined)
+  assert.deepEqual([config.tdd.files, config.tdd.ignore], [[], []])
+})
+
 test('a project tdd.ignore that is not a list of globs is an error', async () => {
   // Given a project whose ignore list is a single string
   const project = fixtureProject(configOf(`{ tdd: { ignore: 'dist/**' } }`))
