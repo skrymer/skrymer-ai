@@ -124,7 +124,18 @@ function webProject(pack) {
 }
 
 for (const pack of ['react', 'nuxt']) {
-  for (const command of ['pnpm --filter acme-web test | tail -30', 'pnpm -C acme-web test 2>&1 | tail -30', 'npm t | tail', 'yarn workspace acme-web test | head', 'npm run test -- --run | grep FAIL']) {
+  for (const command of [
+    'pnpm --filter acme-web test | tail -30',
+    'pnpm -C acme-web test 2>&1 | tail -30',
+    'npm t | tail',
+    'yarn workspace acme-web test | head',
+    'npm run test -- --run | grep FAIL',
+    'pnpm test:unit | tail -30',
+    'npm run test:ci 2>&1 | grep FAIL',
+    'npm run test-ci | tail',
+    '(cd acme-web && pnpm test) | tail',
+    "sh -c 'npm test' | tail",
+  ]) {
     test(`\`${command}\` is denied under a ${pack} root`, () => {
       // Given a project with a ${pack} root
       const project = webProject(pack)
@@ -137,7 +148,7 @@ for (const pack of ['react', 'nuxt']) {
     })
   }
 
-  for (const command of ['pnpm add -D @testing-library/react | tail', 'npm install test-utils | tail', 'pnpm typecheck | tail']) {
+  for (const command of ['pnpm add -D @testing-library/react | tail', 'npm install test-utils | tail', 'pnpm typecheck | tail', 'pnpm build --mode test | tail']) {
     test(`\`${command}\` is allowed under a ${pack} root`, () => {
       // Given a project with a ${pack} root
       const project = webProject(pack)
