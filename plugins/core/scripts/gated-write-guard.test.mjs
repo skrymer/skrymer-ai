@@ -332,12 +332,16 @@ for (const command of [
   "sed -i 's/a/b/' 'acme-web/src/app/blog/[slug]/page.tsx'",
   "echo x > 'acme-web/src/routes/posts.$postId.tsx'",
   "sed -i 's/a/b/' 'acme-web/src/app/(marketing)/about/page.tsx'",
+  "echo x > 'acme-web/src/routes/{-$locale}/about.tsx'",
+  "sed -i 's/a/b/' 'acme-web/src/routes/posts.{-$category}.tsx'",
+  "echo x > 'acme-web/src/components/Order Line.tsx'",
+  'echo x > "acme-web/src/routes/caf%C3%A9.tsx"',
 ]) {
   test(`\`${command}\` is denied, its route characters and all`, () => {
     // Given a project with a react root
     const project = reactProject()
 
-    // When a shell command writes a gated route file whose name holds brackets, a dollar or parentheses
+    // When a shell command writes a gated route file whose name holds brackets, a dollar, parentheses, braces, a space or a % escape
     const found = denied(project, command)
 
     // Then it is denied like any other gated file

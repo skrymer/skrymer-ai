@@ -263,7 +263,8 @@ function validLint(commands, label, errors) {
 export const STAGED = '{staged}'
 
 /** [globs], the project's list under [label], each without a leading `./`, or none with an error when it isn't a list of globs. */
-function projectGlobs(globs = [], label, errors) {
+function projectGlobs(globs, label, errors) {
+  globs ??= []
   if (listOf(globs, (glob) => typeof glob === 'string')) return globs.map((glob) => glob.replace(/^(?:\.\/+)+/, ''))
   errors.push(`${label}: expected a list of globs.`)
   return []
