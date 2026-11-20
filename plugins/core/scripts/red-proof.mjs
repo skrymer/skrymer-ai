@@ -8,8 +8,9 @@
  *
  * The mutation replaces text that is in the file exactly once. The test runs through the `test`
  * command of the stack whose root holds the file, with `{test}` standing for the name and
- * `{testPattern}` for a regex matching it alone at the end of the full name, for a runner that
- * reads the name as a pattern. The test must pass on the copy first, so a runner that is
+ * `{testPattern}` for a regex matching that name exactly, for a runner that reads the name as a
+ * pattern. Vitest and Jest match it against the full name, describe blocks and all, so a test
+ * inside one is named in full (`cart total handles zero`). The test must pass on the copy first, so a runner that is
  * missing or a test that fails anyway can't stand in for the red. A run with the mutation
  * where the test fails is the red: its log, with the HEAD and `git status` it ran on, goes to
  * `skrymer-ai/red/<label>.log` in the repo's git dir, and the script prints the FIXED cell that
@@ -65,8 +66,9 @@ async function main(argv, projectDir) {
       if (existsSync(modules) && !existsSync(join(copy, dir, 'node_modules'))) symlinkSync(modules, join(copy, dir, 'node_modules'), 'dir')
     }
     const inTop = resolve(projectDir, file).slice(top.length + 1)
-    const pattern = `${escapeRegex(test)}$`
-    const [command, ...args] = stack.run.map((word) => word.replaceAll('{testPattern}', pattern).replaceAll('{test}', test))
+    const pattern = `^${escapeRegex(test)}$`
+    // Replacer functions, so a $ in the name or the mutation is written as given rather than expanded.
+    const [command, ...args] = stack.run.map((word) => word.replaceAll('{testPattern}', () => pattern).replaceAll('{test}', () => test))
     const out = resolve(top, git(projectDir, 'rev-parse', '--git-path', 'skrymer-ai/red'))
     mkdirSync(out, { recursive: true })
     const logPath = join(out, `${label}.log`)
@@ -80,16 +82,20 @@ async function main(argv, projectDir) {
       return run
     }
     writeSync(log, `HEAD: ${git(top, 'rev-parse', 'HEAD')}\ngit status:\n${git(top, 'status', '--short') || '(clean)'}\nwithout the mutation:\n`)
-    if (runTest().status !== 0) {
+    const green = runTest()
+    if (green.error) {
+      closeSync(log)
+      throw new Stop(`the test command could not start (${green.error.message}). Log: ${logPath}`)
+    }
+    if (green.status !== 0) {
       closeSync(log)
       throw new Stop(`"${test}" fails without the mutation, so its failure with it proves nothing. Log: ${logPath}`)
     }
-    writeFileSync(join(copy, inTop), source.replace(find, replace))
+    writeFileSync(join(copy, inTop), source.replace(find, () => replace))
     writeSync(log, `mutation: ${file}: "${find}" → "${replace}"\n`)
     const run = runTest()
     closeSync(log)
     if (run.status === 0) throw new Stop(`"${test}" passes with the mutation applied, so it doesn't pin the fix. Log: ${logPath}`)
-    if (run.error) throw new Stop(`the test command could not start (${run.error.message}). Log: ${logPath}`)
     process.stdout.write(`red: "${test}" fails against the mutant.\nFIXED: ${test} — red ${logPath}\n`)
   } finally {
     rmSync(copy, { recursive: true, force: true })
