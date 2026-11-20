@@ -24,11 +24,16 @@ const LOCKFILES = [
 
 const LINT_STAGED_CONFIGS = ['.lintstagedrc', '.lintstagedrc.json', '.lintstagedrc.yaml', '.lintstagedrc.yml', '.lintstagedrc.mjs', '.lintstagedrc.cjs', '.lintstagedrc.js', 'lint-staged.config.js', 'lint-staged.config.mjs', 'lint-staged.config.cjs', 'lint-staged.config.ts']
 
-/** A test run through a package manager, flags and a workspace allowed before the script: `pnpm --filter web test`, `npm t`. */
 /** A packageManager pin this toolchain can run: its manager and major version. */
 const PIN = /^(pnpm|npm|yarn|bun)@(\d+)/
 
-const PACKAGE_MANAGER_TEST = /\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/
+/**
+ * A test run through a package manager: its flags and their values, then the script, optionally
+ * through `run` or a yarn workspace, named `test` or `t` or suffixed (`test:unit`, `test-ci`), and
+ * ended by a space, a quote or a parenthesis as in `sh -c 'npm test'` or `(cd web && pnpm test)`.
+ * A `test` that is only a flag's value, as in `pnpm build --mode test`, is no test run.
+ */
+const PACKAGE_MANAGER_TEST = /\b(?:pnpm|npm|yarn|bun)\b(?:\s+-{1,2}[\w-]+(?:[= ](?!-)[^\s;&|'"()]+)?)*\s+(?:run\s+|workspace\s+[^\s;&|'"()]+\s+)?(?:t|test(?:[:-][\w:-]*)?)(?=[\s'")]|$)/
 
 export const TOOLCHAINS = {
   node: { testCommands: [PACKAGE_MANAGER_TEST], at: nodeToolchain },
