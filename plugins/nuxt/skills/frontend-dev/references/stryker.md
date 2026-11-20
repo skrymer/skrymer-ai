@@ -7,8 +7,9 @@ expects of the project, and the places Stryker is blind.
 
 By default it runs `pnpm exec stryker run --mutate <files> --reporters json,clear-text` in the
 stack root and reads `reports/mutation/mutation.json`. The scope is the changed `.ts` and `.vue`
-files under `app/`, `server/` and `shared/`, minus tests. A project on another package manager
-or report path names its own in the config:
+files under `app/`, `server/` and `shared/`, minus tests. On npm, yarn or bun the command runs
+through that package manager on its own; a project whose Stryker runs another way, or writes its
+report elsewhere, names its own in the config (a `run` given there runs exactly as written):
 `stacks: { nuxt: { roots: [...], mutation: { run: [...'{targets}'...], report } } }`.
 
 The project's `stryker.config.json` needs:

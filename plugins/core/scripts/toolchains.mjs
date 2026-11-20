@@ -8,7 +8,7 @@
  * uses: the one its package.json pins, else the one its lockfile is for, else the same read at the
  * project top (the workspace of a package inside one), else pnpm. Its pre-commit lint is
  * lint-staged when the root configures it. Nothing is read until a command, lint or step is asked
- * for, since the config loads on every hook call.
+ * for, and then only what decides it: files are checked to exist, not read.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -25,6 +25,9 @@ const LOCKFILES = [
 const LINT_STAGED_CONFIGS = ['.lintstagedrc', '.lintstagedrc.json', '.lintstagedrc.yaml', '.lintstagedrc.yml', '.lintstagedrc.mjs', '.lintstagedrc.cjs', '.lintstagedrc.js', 'lint-staged.config.js', 'lint-staged.config.mjs', 'lint-staged.config.cjs', 'lint-staged.config.ts']
 
 /** A test run through a package manager, flags and a workspace allowed before the script: `pnpm --filter web test`, `npm t`. */
+/** A packageManager pin this toolchain can run: its manager and major version. */
+const PIN = /^(pnpm|npm|yarn|bun)@(\d+)/
+
 const PACKAGE_MANAGER_TEST = /\b(?:pnpm|npm|yarn|bun)\b[^;&|]*?\s(?:run\s+)?t(?:est)?(?=\s|$)/
 
 export const TOOLCHAINS = {
@@ -38,31 +41,40 @@ export const TOOLCHAINS = {
 export function nodeToolchain(root, rootDir, topDir) {
   const at = (file) => (root ? `${root}/${file}` : file)
   let found
-  /** The package manager and where its pin, lockfile and Node version come from, read once. */
+  /**
+   * The package manager and where its pin, lockfile and Node version come from, read once,
+   * nearest first: the root, each folder above it, then the project top.
+   */
   const facts = () => {
     if (found) return found
-    const level = (dir, path) => ({
-      dir,
-      path,
-      pin: /^(\w+)@(\d+)/.exec(packageJson(dir)?.packageManager ?? ''),
-      lock: LOCKFILES.find(([file]) => existsSync(join(dir, file))),
-    })
-    const levels = [level(rootDir, at), level(topDir, (file) => file)]
-    const [own, top] = levels
-    const manager = own.pin?.[1] ?? own.lock?.[1] ?? top.pin?.[1] ?? top.lock?.[1] ?? 'pnpm'
+    const segments = root ? root.split('/') : []
+    const levels = segments
+      .map((_, i) => segments.slice(0, segments.length - i).join('/'))
+      .concat('')
+      .map((path, i) => {
+        const dir = i === 0 ? rootDir : join(topDir, path)
+        return {
+          dir,
+          path: (file) => (path ? `${path}/${file}` : file),
+          pin: PIN.exec(packageJson(dir)?.packageManager ?? ''),
+          lock: LOCKFILES.find(([file]) => existsSync(join(dir, file))),
+        }
+      })
+    const manager = levels.map(({ pin, lock }) => pin?.[1] ?? lock?.[1]).find(Boolean) ?? 'pnpm'
+    const pinned = levels.find(({ pin }) => pin?.[1] === manager)
     const locked = levels.find(({ lock }) => lock?.[1] === manager)
     const nvmrc = levels.find(({ dir }) => existsSync(join(dir, '.nvmrc')))
     found = {
       manager,
-      own,
-      top,
+      major: Number(pinned?.pin[2] ?? 0),
+      // pnpm/action-setup and setup-bun read a pin from the package.json they're given, or the repo top's when given none.
+      pinFile: pinned && (pinned === levels.at(-1) ? null : pinned.path('package.json')),
       lockfile: locked && locked.path(locked.lock[0]),
       nvmrc: nvmrc && nvmrc.path('.nvmrc'),
-      major: Number(levels.find(({ pin }) => pin?.[1] === manager)?.pin[2] ?? 0),
     }
     return found
   }
-  const command = (pnpm) => translate(pnpm, facts().manager)
+  const command = (pnpm) => translate(pnpm, facts())
 
   return {
     get manager() {
@@ -74,30 +86,33 @@ export function nodeToolchain(root, rootDir, topDir) {
     lint: (lint) => (usesLintStaged(rootDir) ? [command(['pnpm', 'exec', 'lint-staged'])] : lint.map(command)),
     /** The GitHub Actions steps that install the package manager, Node and the dependencies. */
     ci: () => {
-      const { manager, own, top, lockfile, nvmrc, major } = facts()
+      const { manager, major, pinFile, lockfile, nvmrc } = facts()
       const node = nvmrc ? { 'node-version-file': nvmrc } : { 'node-version': 'lts/*' }
-      const cache = (name) => ({ ...node, cache: name, ...(lockfile ? { 'cache-dependency-path': lockfile } : {}) })
-      if (manager === 'npm') return [{ uses: 'actions/setup-node@v4', with: cache('npm') }, { run: lockfile ? 'npm ci' : 'npm install' }]
-      if (manager === 'yarn') {
-        const install = major >= 2 ? 'yarn install --immutable' : 'yarn install --frozen-lockfile'
-        return [{ run: 'corepack enable' }, { uses: 'actions/setup-node@v4', with: cache('yarn') }, { run: install }]
-      }
-      if (manager === 'bun') return [{ uses: 'oven-sh/setup-bun@v2' }, { run: 'bun install --frozen-lockfile' }]
-      // pnpm/action-setup refuses a version beside a pin in the workspace's package.json, so a pin wins.
-      const setup = own.pin?.[1] === 'pnpm' ? { with: { package_json_file: at('package.json') } } : top.pin?.[1] === 'pnpm' ? {} : { with: { version: 10 } }
-      return [{ uses: 'pnpm/action-setup@v4', ...setup }, { uses: 'actions/setup-node@v4', with: cache('pnpm') }, { run: 'pnpm install --frozen-lockfile' }]
+      // setup-node refuses to cache without the lockfile, so a root without one gets no cache.
+      const setupNode = (cache) => ({ uses: 'actions/setup-node@v4', with: { ...node, ...(lockfile ? { cache, 'cache-dependency-path': lockfile } : {}) } })
+      const pin = (key) => (pinFile ? { with: { [key]: pinFile } } : {})
+      if (manager === 'npm') return [setupNode('npm'), { run: lockfile ? 'npm ci' : 'npm install' }]
+      if (manager === 'yarn') return [{ run: 'corepack enable' }, setupNode('yarn'), { run: major >= 2 ? 'yarn install --immutable' : 'yarn install --frozen-lockfile' }]
+      if (manager === 'bun') return [{ uses: 'oven-sh/setup-bun@v2', ...pin('bun-version-file') }, { uses: 'actions/setup-node@v4', with: node }, { run: 'bun install --frozen-lockfile' }]
+      // pnpm/action-setup refuses a version beside a pin, so a pin wins.
+      const setup = pinFile !== undefined ? pin('package_json_file') : { with: { version: 10 } }
+      return [{ uses: 'pnpm/action-setup@v4', ...setup }, setupNode('pnpm'), { run: 'pnpm install --frozen-lockfile' }]
     },
   }
 }
 
-/** A pnpm command for [manager]: `pnpm exec x` runs a local binary, `pnpm dlx x` a fetched one, and `pnpm [run] x` a script. */
-function translate([program, ...args], manager) {
+/**
+ * A pnpm command for the root's [manager]. `pnpm exec x` runs a local binary and fails when there
+ * is none, so it becomes `npm exec --no` (Yarn 2+'s `yarn exec`), which never fetches one; `pnpm
+ * dlx x` fetches one; and `pnpm [run] x` runs a script.
+ */
+function translate([program, ...args], { manager, major }) {
   if (program !== 'pnpm' || manager === 'pnpm') return [program, ...args]
   const [verb, ...rest] = args
-  if (verb === 'exec') return { npm: ['npm', 'exec', '--', ...rest], yarn: ['yarn', ...rest], bun: ['bun', 'x', ...rest] }[manager]
+  if (verb === 'exec') return manager === 'yarn' && major >= 2 ? ['yarn', 'exec', ...rest] : ['npm', 'exec', '--no', '--', ...rest]
   if (verb === 'dlx') return { npm: ['npx', '--yes', ...rest], yarn: ['yarn', 'dlx', ...rest], bun: ['bun', 'x', ...rest] }[manager]
   const script = verb === 'run' ? rest : args
-  return { npm: ['npm', 'run', ...script], yarn: ['yarn', ...script], bun: ['bun', 'run', ...script] }[manager]
+  return { npm: ['npm', 'run', ...script], yarn: ['yarn', 'run', ...script], bun: ['bun', 'run', ...script] }[manager]
 }
 
 /** Whether the root at [dir] configures lint-staged, in its package.json or a config file of its own. */

@@ -9,8 +9,9 @@ By default it runs `pnpm exec stryker run --mutate <files> --reporters json,clea
 stack root and reads `reports/mutation/mutation.json`. The scope is the changed `.ts`, `.tsx`,
 `.js` and `.jsx` files under `src/` (or a Next.js, Remix or Expo app's `app/`, `pages/`,
 `components/`, `hooks/`, `lib/` and `utils/`), minus tests and what the TDD gate ignores:
-stories, generated files and test helpers. A project on another package manager or
-report path names its own in the config:
+stories, generated files and test helpers. On npm, yarn or bun the command runs through that
+package manager on its own; a project whose Stryker runs another way, or writes its report
+elsewhere, names its own in the config (a `run` given there runs exactly as written):
 `stacks: { react: { roots: [...], mutation: { run: [...'{targets}'...], report } } }`.
 
 The project's `stryker.config.json` needs this, the TypeScript checker lines aside, which are optional:
